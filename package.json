@@ -9,15 +9,64 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+       "onView:nodeDependencies"
+  ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "vs-for-mcstas.helloWorld",
-        "title": "Hello World"
+      "configuration": {
+      "title": "Component Viewer",
+      "properties": {
+        "componentViewer.rootPath": {
+          "type": "string",
+          "default": "",
+          "description": "The root path for the Component Viewer tree view."
+        }
       }
-    ]
+    },
+      "viewsContainers": {
+      "activitybar": [
+          {
+            "id": "McStas-sidebar",
+            "title": "McStas",
+            "icon": "./media/mcstas.svg"
+          }
+        ]
+      },
+    "views": {
+      "McStas-sidebar": [
+        {
+          "id": "Component_viewer",
+          "name": "Instr Files",
+          "icon":   "./media/mcstas.svg"
+        }
+      ]
+    },
+        "commands": [
+          {
+            "command": "vs-for-mcstas.addcomponent",
+            "title": "Insert Component",
+            "category": "McStas",
+            "icon": {
+              "light": "./media/mcstas.svg",
+              "dark": "./media/mcstas.svg"
+            }
+          }
+        ],
+    "languages": [{
+      "id": "mccode",
+      "aliases": ["mccode", "mccode"],
+      "extensions": [".comp",".instr"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "mccode",
+      "scopeName": "source.mccode",
+      "path": "./syntaxes/mccode.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.embedded.block.c": "c"
+      }
+    }]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
