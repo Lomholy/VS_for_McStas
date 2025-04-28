@@ -51,8 +51,20 @@
               "light": "./media/mcstas.svg",
               "dark": "./media/mcstas.svg"
             }
-          }
+          },
+          {
+            "command": "mcstas.openCompFile",
+            "title": "Open Component File"
+        }
         ],
+    "menus": {
+            "view/item/context": [
+                {
+                    "command": "mcstas.openCompFile",
+                    "group": "navigation"
+                }
+            ]
+        },
     "languages": [{
       "id": "mccode",
       "aliases": ["mccode", "mccode"],

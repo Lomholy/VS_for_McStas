@@ -8,7 +8,9 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('vs-for-mcstas.openCompDialog', openCompDialog)
     );
 	console.log('Congratulations, your extension "vs-for-mcstas" is now active!');
-
+	vscode.commands.registerCommand('mcstas.openCompFile', async (resource: vscode.Uri) => {
+		await vscode.window.showTextDocument(resource);
+	});
 	const disposable = vscode.commands.registerCommand('vs-for-mcstas.addcomponent', () => {
 		vscode.window.showInformationMessage(`Running command!`);
 	});

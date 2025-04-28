@@ -88,6 +88,7 @@ class Component extends vscode.TreeItem {
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState
 	) {
 		super(label, collapsibleState);
+		this.contextValue = 'compFile'; // <- very important
 		this.tooltip = this.fullPath;
 		this.resourceUri = vscode.Uri.file(this.fullPath);
 
