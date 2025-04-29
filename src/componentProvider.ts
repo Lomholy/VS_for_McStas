@@ -81,7 +81,7 @@ export class ComponentProvider implements vscode.TreeDataProvider<Component> {
 	}
 }
 
-class Component extends vscode.TreeItem {
+export class Component extends vscode.TreeItem {
 	constructor(
 		public readonly label: string,
 		public readonly fullPath: string,
