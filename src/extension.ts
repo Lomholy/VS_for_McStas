@@ -20,14 +20,6 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Failed to open file: ${error}`);
 		}
 	});
-
-
-	const disposable = vscode.commands.registerCommand('vs-for-mcstas.addcomponent', () => {
-
-		vscode.window.showInformationMessage(`Running command!`);
-	});
-
-	context.subscriptions.push(disposable);
 }
 
 export function deactivate() {}
