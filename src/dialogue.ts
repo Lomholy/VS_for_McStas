@@ -17,6 +17,8 @@ export async function openCompDialog(filePath: string) {
     panel.webview.onDidReceiveMessage((message) => {
         if (message.command === 'submit') {
             const submitted = message.parameters;
+
+            
     
             const instanceName = submitted['instanceName'] || 'my_component';
             const position = submitted['position'] || '0, 0, 0';
@@ -62,22 +64,6 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
                         <label for="instanceName">Instance Name</label>
                         <input type="text" id="instanceName" name="instanceName" placeholder="e.g., my_component">
                     </div>
-                    <div>
-                        <label for="position">Position (x, y, z)</label>
-                        <input type="text" id="position" name="position" placeholder="e.g., 0, 0, 1">
-                    </div>
-                    <div>
-                        <label for="relativeAT">Relative To</label>
-                        <input type="text" id="relativeAT" name="relative" placeholder="e.g., origin">
-                    </div>
-                    <div>
-                        <label for="rotation">Rotation (x, y, z)</label>
-                        <input type="text" id="rotation" name="rotation" placeholder="e.g., 0, 0, 0">
-                    </div>
-                    <div>
-                        <label for="relativeROT">Relative To</label>
-                        <input type="text" id="relativeROT" name="relative" placeholder="e.g., origin">
-                    </div>
                     <h3>Parameters</h3>
                     ${parameters.map(param => `
                         <div>
@@ -85,7 +71,23 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
                             <input type="text" id="${param.name}" name="${param.name}" value="${param.value || ''}">
                         </div>
                     `).join('')}
-                    <button type="submit">Submit</button>
+                    <div>
+                        <label for="position">Position (x, y, z)</label>
+                        <input type="text" id="position" name="position" placeholder="e.g., 0, 0, 1">
+                    </div>
+                    <div>
+                        <label for="relativeAT">Relative To</label>
+                        <input type="text" id="relativeAT" name="relativeAT" placeholder="e.g., origin">
+                    </div>
+                    <div>
+                        <label for="rotation">Rotation (x, y, z)</label>
+                        <input type="text" id="rotation" name="rotation" placeholder="e.g., 0, 0, 0">
+                    </div>
+                    <div>
+                        <label for="relativeROT">Relative To</label>
+                        <input type="text" id="relativeROT" name="relativeROT" placeholder="e.g., origin">
+                    </div>
+                    <button type="submit">Write out Component</button>
                 </form>
                 <script>
                     const vscode = acquireVsCodeApi();
@@ -93,9 +95,26 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
                         e.preventDefault();
                         const formData = new FormData(e.target);
                         const parameters = {};
+                        let hasEmpty = false;
+                        const specialKeys = ['position', 
+                                            'rotation', 
+                                            'relativeROT', 
+                                            'relativeAT',
+                                            'instanceName'];
                         formData.forEach((value, key) => {
-                            parameters[key] = value;
+                            if (!specialKeys.includes(key)){
+                                if (value.trim() === '') {
+                                    hasEmpty = true;
+                                }
+                        }
+                            parameters[key] = value.trim();
                         });
+
+                        if (hasEmpty) {
+                            alert('Please fill in all parameters before submitting.');
+                            return;
+                        }
+
                         vscode.postMessage({ command: 'submit', parameters });
                     };
                 </script>
