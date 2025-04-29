@@ -63,7 +63,6 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
     const oldParameters = JSON.parse(JSON.stringify(parameters));
     return `
         <html>
-            oldParameters = parameters;
             <body>
                 <h2>${header}</h2>
                 <h3>Component Instance</h3>
