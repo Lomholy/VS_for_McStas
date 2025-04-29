@@ -4,8 +4,7 @@ import { ComponentProvider, Component } from './componentProvider'; // assuming 
 
 export function activate(context: vscode.ExtensionContext) {
 	activateComponentViewer(context); // Read the component tree
-	context.subscriptions.push(
-		// Allow user to insert a component
+	context.subscriptions.push(// Allow user to insert a component
         vscode.commands.registerCommand('vs-for-mcstas.openCompDialog', openCompDialog)
     );
 
