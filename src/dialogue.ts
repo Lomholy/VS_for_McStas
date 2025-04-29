@@ -16,8 +16,9 @@ export async function openCompDialog(filePath: string) {
     // Handle submitted form data
     panel.webview.onDidReceiveMessage((message) => {
         if (message.command === 'submit') {
+            console.log(message)
             const submitted = message.parameters;
-
+            const original: ComponentParameterInfo[] = message.oldParameters
             
     
             const instanceName = submitted['instanceName'] || 'my_component';
@@ -34,11 +35,16 @@ export async function openCompDialog(filePath: string) {
             delete submitted['relativeROT'];
             
     
-            // Format parameters over multiple lines
             const formattedParams = Object.entries(submitted)
-                .map(([key, val]) => `${key} = ${val}`)
-                .join(',\n    ');
-    
+            .filter(([key, val]) => {
+                // Only include parameters that have changed (submitted value is different from old value)
+                const oldVal = original.find(p => p.name === key)?.value;
+                return val !== oldVal;  // Include only parameters that have changed
+            })
+            .filter(([key, val]) => val !== undefined && val !== '')  // Only include parameters with values
+            .map(([key, val]) => `${key} = ${val}`)
+            .join(',\n    ');
+            
             const formattedComponent = `COMPONENT ${instanceName} = ${header}(\n    ${formattedParams}\n) AT (${position}) RELATIVE ${relativeAT}\nROTATED (${rotation}) RELATIVE ${relativeROT}`;
     
             panel.webview.html = `
@@ -54,8 +60,10 @@ export async function openCompDialog(filePath: string) {
     
 }
 function getWebviewContent(header: string, parameters: ComponentParameterInfo[]): string {
+    const oldParameters = JSON.parse(JSON.stringify(parameters));
     return `
         <html>
+            oldParameters = parameters;
             <body>
                 <h2>${header}</h2>
                 <h3>Component Instance</h3>
@@ -91,6 +99,7 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
                 </form>
                 <script>
                     const vscode = acquireVsCodeApi();
+                    const oldParameters = ${JSON.stringify(oldParameters)};
                     document.getElementById('compForm').onsubmit = (e) => {
                         e.preventDefault();
                         const formData = new FormData(e.target);
@@ -115,7 +124,7 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
                             return;
                         }
 
-                        vscode.postMessage({ command: 'submit', parameters });
+                        vscode.postMessage({ command: 'submit', parameters, oldParameters});
                     };
                 </script>
             </body>
