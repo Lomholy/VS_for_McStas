@@ -64,37 +64,84 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[])
     return `
         <html>
             <body>
+                 <style>
+                    .custom-box {
+                        border: 2px solid #2196F3;
+                        border-radius: 4px;
+                        padding: 5px;
+                        color: white;
+                        text-shadow: -1px -1px 0 black,
+                                    1px -1px 0 black,
+                                    -1px 1px 0 black,
+                                    1px 1px 0 black;
+                        background-color: transparent;
+                    }
+                    .form-row {
+                        font-family: monospace; /* Ensures character spacing is consistent */
+                        margin-bottom: 10px;
+                    }
+
+                    .form-label {
+                        display: inline-block;
+                        width: 30ch; /* 30 character spaces wide */
+                        vertical-align: middle;
+                    }
+
+                    .form-input {
+                        display: inline-block;
+                        vertical-align: middle;
+                    }
+                    </style>
                 <h2>${header}</h2>
                 <h3>Component Instance</h3>
                 <form id="compForm">
                     <div>
-                        <label for="instanceName">Instance Name</label>
-                        <input type="text" id="instanceName" name="instanceName" placeholder="e.g., my_component">
+                        <label class="form-label" for="instanceName">Instance Name</label>
+                        <input type="text" class="custom-box form-input" id="instanceName" name="instanceName" placeholder="e.g., my_component">
                     </div>
                     <h3>Parameters</h3>
                     ${parameters.map(param => `
                         <div>
-                            <label for="${param.name}">${param.name}</label>
-                            <input type="text" id="${param.name}" name="${param.name}" value="${param.value || ''}">
+                            <label class="form-label" for="${param.name}">${param.name}</label>
+                            <input align="center" type="text" 
+                                class="custom-box form-input"
+                                id="${param.name}" name="${param.name}" value="${param.value || ''}">
                         </div>
+                        
                     `).join('')}
                     <div>
-                        <label for="position">Position (x, y, z)</label>
-                        <input type="text" id="position" name="position" placeholder="e.g., 0, 0, 1">
+                        <label class="form-label" align="left" for="position">Position (x, y, z)</label>
+                        <input type="text" 
+                            class="custom-box form-input"
+                            id="position" 
+                            name="position" 
+                            placeholder="e.g., 0, 0, 0">
                     </div>
                     <div>
-                        <label for="relativeAT">Relative To</label>
-                        <input type="text" id="relativeAT" name="relativeAT" placeholder="e.g., origin">
+                        <label class="form-label" align="left" for="relativeAT">Relative To</label>
+                        <input type="text" 
+                                class="custom-box form-input" 
+                                id="relativeAT" 
+                                name="relativeAT" 
+                                placeholder="e.g., origin">
                     </div>
                     <div>
-                        <label for="rotation">Rotation (x, y, z)</label>
-                        <input type="text" id="rotation" name="rotation" placeholder="e.g., 0, 0, 0">
+                        <label class="form-label" align="left" for="rotation">Rotation (x, y, z)</label>
+                        <input type="text" 
+                                class="custom-box form-input" 
+                                id="rotation" 
+                                name="rotation" 
+                                placeholder="e.g., 0, 0, 0">
                     </div>
                     <div>
-                        <label for="relativeROT">Relative To</label>
-                        <input type="text" id="relativeROT" name="relativeROT" placeholder="e.g., origin">
+                        <label class="form-label" align="left" for="relativeROT">Relative To</label>
+                        <input type="text" 
+                                class="custom-box form-input" 
+                                id="relativeROT" 
+                                name="relativeROT" 
+                                placeholder="e.g., origin">
                     </div>
-                    <button type="submit">Write out Component</button>
+                    <button type="submit" >Write out Component</button>
                 </form>
                 <script>
                     const vscode = acquireVsCodeApi();
