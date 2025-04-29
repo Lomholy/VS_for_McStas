@@ -14,7 +14,6 @@ mcstas resource folder. For linux it can be found under /usr/share/mcstas/resour
 ## Release Notes
 
 
-
 ### 1.0.0
 
 Initial release of VS-for-McStas
