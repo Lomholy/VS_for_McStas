@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import {openCompDialog} from './dialogue'
+import { getWebviewHtml } from './mcrunView';
+import { mcrunCommand } from './mrunCommand';
 import { ComponentProvider, Component } from './componentProvider'; // assuming this file is componentProvider.ts
 
 export function activate(context: vscode.ExtensionContext) {
@@ -57,64 +59,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('mcstas.mcrun', async () => {
-		  const editor = vscode.window.activeTextEditor;
-		  if (!editor) {
-			vscode.window.showErrorMessage('No active editor found.');
-			return;
-		  }
-	
-		  const fileUri = editor.document.uri;
-		  const fileName = path.basename(fileUri.fsPath);
-		  if (!fileName.endsWith('.instr')) {
-			vscode.window.showErrorMessage('The current file is not a .instr file.');
-			return;
-		  }
-	
-		  const fileContent = editor.document.getText();
-		  // Match: DEFINE INSTRUMENT name(params...)
-		  const defineMatch = fileContent.match(/DEFINE\s+INSTRUMENT\s+(\w+)\s*\(([^)]*)\)/s);
-		  if (!defineMatch) {
-			vscode.window.showErrorMessage('No DEFINE INSTRUMENT(...) block found.');
-			return;
-		  }
-		  const instrName = defineMatch[1];
-		  const paramBlock = defineMatch[2];
-	
-		 
-		// Split by commas (ignoring commas inside strings)
-		const paramRegex = /(?:int|string|float|double)?\s*(\w+)\s*=\s*("[^"]*"|[^,]*)/g;
-		const inputs: Record<string, string> = {};
-
-		let match;
-		while ((match = paramRegex.exec(paramBlock)) !== null) {
-			const paramName = match[1].trim();
-			const defaultValue = match[2].trim().replace(/^"|"$/g, '');
-		
-			const input = await vscode.window.showInputBox({
-				prompt: `Enter value for ${paramName}`,
-				value: defaultValue,
-			});
-	
-			if (input === undefined) {
-				vscode.window.showWarningMessage('Operation cancelled.');
-				return;
-			}
-	
-			inputs[paramName] = input;
-			}
-	
-			const args = Object.entries(inputs)
-			.map(([key, value]) => {
-				const quoted = /^\d+(\.\d+)?$/.test(value) ? value : `"${value}"`;
-				return `${key}=${quoted}`;
-			})
-			.join(' ');
-	
-			const terminal = vscode.window.createTerminal('McStas Simulation');
-			terminal.show();
-			terminal.sendText(`mcrun ${fileName} ${args}`);
-		})
-	  );
+			mcrunCommand();
+	})
+	);
 
 	vscode.commands.registerCommand('mcstas.mcdisplay', () => {
 		vscode.window.showInformationMessage('Hellop from mcdisp!');
@@ -164,47 +111,5 @@ async function activateComponentViewer(context: vscode.ExtensionContext) {
 
 
 
-function getWebviewHtml(instrName: string, params: { name: string; defaultValue: string }[]): string {
-	const inputs = params
-	  .map(
-		p => `
-		  <label for="${p.name}">${p.name}</label>
-		  <input id="${p.name}" name="${p.name}" value="${p.defaultValue}" />
-		`
-	  )
-	  .join('<br><br>');
+
   
-	return `
-	  <!DOCTYPE html>
-	  <html lang="en">
-	  <head>
-		<meta charset="UTF-8" />
-		<style>
-		  body { font-family: sans-serif; padding: 1rem; }
-		  input { width: 100%; padding: 0.4rem; margin-top: 0.2rem; }
-		  button { margin-top: 1rem; padding: 0.5rem 1rem; font-weight: bold; }
-		</style>
-	  </head>
-	  <body>
-		<h2>Run McStas Simulation: ${instrName}</h2>
-		<form id="paramForm">
-		  ${inputs}
-		  <button type="submit">Run Simulation</button>
-		</form>
-  
-		<script>
-		  const vscode = acquireVsCodeApi();
-		  document.getElementById('paramForm').addEventListener('submit', (e) => {
-			e.preventDefault();
-			const form = e.target;
-			const values = {};
-			for (const el of form.elements) {
-			  if (el.name) values[el.name] = el.value;
-			}
-			vscode.postMessage({ command: 'run', values });
-		  });
-		</script>
-	  </body>
-	  </html>
-	`;
-  }
