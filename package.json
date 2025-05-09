@@ -2,13 +2,12 @@
   "name": "vs-for-mcstas",
   "displayName": "VS_for_McStas",
   "description": "VS_for_McStas is an extension that aims to deliver McStas syntax highlighting, as well as GUI component insertion.",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lomholy/VS_for_McStas"
   },
-  "publisher": "lomholy"
-  ,
+  "publisher": "lomholy",
   "engines": {
     "vscode": "^1.99.0"
   },
@@ -18,7 +17,7 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-      "configuration": {
+    "configuration": {
       "title": "Component Viewer",
       "properties": {
         "componentViewer.rootPath": {
@@ -28,61 +27,129 @@
         }
       }
     },
-      "viewsContainers": {
+    "viewsContainers": {
       "activitybar": [
-          {
-            "id": "McStas-sidebar",
-            "title": "McStas",
-            "icon": "./media/mcstas.svg"
-          }
-        ]
-      },
+        {
+          "id": "McStas-sidebar",
+          "title": "McStas",
+          "icon": "./media/mcstas.svg"
+        }
+      ]
+    },
     "views": {
       "McStas-sidebar": [
         {
           "id": "Component_viewer",
-          "name": "Instr Files",
-          "icon":   "./media/mcstas.svg"
+          "name": "Components",
+          "icon": "./media/mcstas.svg"
         }
       ]
     },
-        "commands": [
-          {
-            "command": "vs-for-mcstas.addcomponent",
-            "title": "Insert Component",
-            "category": "McStas",
-            "icon": {
-              "light": "./media/mcstas.svg",
-              "dark": "./media/mcstas.svg"
-            }
-          },
-          {
-            "command": "mcstas.openCompFile",
-            "title": "Open Component File"
+    "commands": [
+      {
+        "command": "vs-for-mcstas.addcomponent",
+        "title": "Insert Component",
+        "category": "McStas",
+        "icon": {
+          "light": "./media/mcstas.svg",
+          "dark": "./media/mcstas.svg"
         }
-        ],
-    "menus": {
-            "view/item/context": [
-                {
-                    "command": "mcstas.openCompFile",
-                    "group": "navigation"
-                }
-            ]
-        },
-    "languages": [{
-      "id": "mccode",
-      "aliases": ["mccode", "mccode"],
-      "extensions": [".comp",".instr"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "mccode",
-      "scopeName": "source.mccode",
-      "path": "./syntaxes/mccode.tmLanguage.json",
-      "embeddedLanguages": {
-        "meta.embedded.block.c": "c"
+      },
+      {
+        "command": "mcstas.openCompFile",
+        "title": "Open Component File",
+        "icon": {
+          "light": "./media/mcstas.svg",
+          "dark": "./media/mcstas.svg"
+        }
+      },
+      {
+        "command": "mcstas.createNewInstr",
+        "title": "Create a new instrument file",
+        "icon": {
+          "light": "./media/mcstas.svg",
+          "dark": "./media/mcstas.svg"
+        }
+      },
+      {
+        "command": "mcstas.mcrun",
+        "title": "Run Instrument",
+        "icon": {
+          "light": "./media/mcstas.svg",
+          "dark": "./media/mcstas.svg"
+        }
+      },
+      {
+        "command": "mcstas.mcdisplay",
+        "title": "Display Instrument",
+        "icon": {
+          "light": "./media/mcstas.svg",
+          "dark": "./media/mcstas.svg"
+        }
+      },
+      {
+        "command": "mcstas.mcplot",
+        "title": "Plot Data",
+        "icon": {
+          "light": "./media/mcstas.svg",
+          "dark": "./media/mcstas.svg"
+        }
       }
-    }]
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "mcstas.openCompFile",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "mcstas.createNewInstr",
+          "when": "view == Component_viewer",
+          "group": "dot_group"
+        },
+        {
+          "command": "mcstas.mcrun",
+          "when": "view == Component_viewer",
+          "group": "dot_group"
+        },
+        {
+          "command": "mcstas.mcdisplay",
+          "when": "view == Component_viewer",
+          "group": "dot_group"
+        },
+        {
+          "command": "mcstas.mcplot",
+          "when": "view == Component_viewer",
+          "group": "dot_group"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "mccode",
+        "aliases": [
+          "mccode",
+          "mccode"
+        ],
+        "extensions": [
+          ".comp",
+          ".instr"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mccode",
+        "scopeName": "source.mccode",
+        "path": "./syntaxes/mccode.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.c": "c"
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -93,14 +160,14 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.99.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
+    "@types/node": "^20.17.46",
+    "@types/vscode": "^1.99.0",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
-    "eslint": "^9.23.0",
-    "typescript": "^5.8.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.23.0",
+    "typescript": "^5.8.3"
   }
 }
