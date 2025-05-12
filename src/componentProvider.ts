@@ -2,6 +2,51 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
+
+export async function askUserForPath(): Promise<string | undefined> {
+	const folders = await vscode.window.showOpenDialog({
+		canSelectFolders: true,
+		canSelectFiles: false,
+		canSelectMany: false,
+		openLabel: 'Select a folder for Component Viewer'
+	});
+
+	if (folders && folders.length > 0) {
+		return folders[0].fsPath;
+	}
+	return undefined;
+}
+export async function setMcStasPath() {
+	let rootPath = await askUserForPath();
+
+	if (rootPath) {
+		await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
+	} else {
+		vscode.window.showWarningMessage('No path selected for Component Viewer.');
+		return;
+	}
+}
+
+export async function activateComponentViewer(context: vscode.ExtensionContext) {
+	let rootPath = vscode.workspace.getConfiguration().get<string>('componentViewer.rootPath');
+
+	if (!rootPath) {
+		rootPath = await askUserForPath();
+
+		if (rootPath) {
+			await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
+		} else {
+			vscode.window.showWarningMessage('No path selected for Component Viewer.');
+			return;
+		}
+	}
+
+	vscode.window.registerTreeDataProvider(
+		'Component_viewer',
+		new ComponentProvider(rootPath)
+	);
+}
+
 export class ComponentProvider implements vscode.TreeDataProvider<Component> {
 	constructor(private workspaceRoot: string) {}
 

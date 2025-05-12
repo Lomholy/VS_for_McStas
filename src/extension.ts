@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { createTemplateInstr } from './createTemplateInstr';
 import {openCompDialog} from './dialogue'
 import { mcrunCommand } from './mrunCommand';
-import { ComponentProvider, Component, activateComponentViewer } from './componentProvider'; // assuming this file is componentProvider.ts
+import { ComponentProvider, Component, activateComponentViewer, setMcStasPath} from './componentProvider'; // assuming this file is componentProvider.ts
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 
@@ -38,6 +38,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
 		mcplotCommand();
+	});
+	vscode.commands.registerCommand('mcstas.chooseMcStasResourceFolder', () => {
+		setMcStasPath();
 	});
 	
 	console.log(context.subscriptions);

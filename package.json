@@ -94,6 +94,18 @@
           "light": "./media/mcstas.svg",
           "dark": "./media/mcstas.svg"
         }
+      },
+      {
+        "command": "mcstas.launchMcstasTerminal",
+        "title": "McStas for Windows"
+      },
+      {
+        "command": "mcstas.launchCondaWMcstas",
+        "title": "McStas for Mac"
+      },
+      {
+        "command": "mcstas.chooseMcStasResourceFolder",
+        "title": "Set McStas Folder"
       }
     ],
     "menus": {
@@ -121,6 +133,11 @@
         },
         {
           "command": "mcstas.mcplot",
+          "when": "view == Component_viewer",
+          "group": "dot_group"
+        },
+        {
+          "command": "mcstas.chooseMcStasResourceFolder",
           "when": "view == Component_viewer",
           "group": "dot_group"
         }
