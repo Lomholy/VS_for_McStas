@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { createTemplateInstr } from './createTemplateInstr';
 import {openCompDialog} from './dialogue'
 import { mcrunCommand } from './mrunCommand';
-import { ComponentProvider, Component } from './componentProvider'; // assuming this file is componentProvider.ts
+import { ComponentProvider, Component, activateComponentViewer } from './componentProvider'; // assuming this file is componentProvider.ts
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 
@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.registerCommand('mcstas.mcdisplay', () => {
 		mcdisplayCommand();
 	});
-	
+
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
 		mcplotCommand();
 	});
@@ -44,40 +44,6 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
-
-async function askUserForPath(): Promise<string | undefined> {
-	const folders = await vscode.window.showOpenDialog({
-		canSelectFolders: true,
-		canSelectFiles: false,
-		canSelectMany: false,
-		openLabel: 'Select a folder for Component Viewer'
-	});
-
-	if (folders && folders.length > 0) {
-		return folders[0].fsPath;
-	}
-	return undefined;
-}
-
-async function activateComponentViewer(context: vscode.ExtensionContext) {
-	let rootPath = vscode.workspace.getConfiguration().get<string>('componentViewer.rootPath');
-
-	if (!rootPath) {
-		rootPath = await askUserForPath();
-
-		if (rootPath) {
-			await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
-		} else {
-			vscode.window.showWarningMessage('No path selected for Component Viewer.');
-			return;
-		}
-	}
-
-	vscode.window.registerTreeDataProvider(
-		'Component_viewer',
-		new ComponentProvider(rootPath)
-	);
-}
 
 
 
