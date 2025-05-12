@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { createTemplateInstr } from './createTemplateInstr';
 import {openCompDialog} from './dialogue'
-import { getWebviewHtml } from './mcrunView';
 import { mcrunCommand } from './mrunCommand';
 import { ComponentProvider, Component } from './componentProvider'; // assuming this file is componentProvider.ts
+import { mcdisplayCommand } from './mcdisplayCommand';
+import { mcplotCommand } from './mcplotCommand';
 
 export function activate(context: vscode.ExtensionContext) {
 	activateComponentViewer(context); // Read the component tree
@@ -22,23 +23,21 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Failed to open file: ${error}`);
 		}
 	});
-	context.subscriptions.push(
+
 	vscode.commands.registerCommand('mcstas.createNewInstr', async () => {
 		createTemplateInstr(context);
 	})
-	);
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('mcstas.mcrun', async () => {
-			mcrunCommand();
+	vscode.commands.registerCommand('mcstas.mcrun', async () => {
+		mcrunCommand();
 	})
-	);
 
 	vscode.commands.registerCommand('mcstas.mcdisplay', () => {
-		vscode.window.showInformationMessage('Hellop from mcdisp!');
+		mcdisplayCommand();
 	});
+	
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
-		vscode.window.showInformationMessage('Hello from mcplot!');
+		mcplotCommand();
 	});
 	
 	console.log(context.subscriptions);
