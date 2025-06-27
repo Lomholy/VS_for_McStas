@@ -1,19 +1,16 @@
-
-
-
-export function getWebviewHtml(instrName: string, params: { name: string; defaultValue: string }[]): string {
-	const inputs = params
-	  .map(
-		p => `
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getWebviewHtml = getWebviewHtml;
+function getWebviewHtml(instrName, params) {
+    const inputs = params
+        .map(p => `
 		  <div class="param-row">
 			<label for="${p.name}">${p.name}</label>
 			<input id="${p.name}" name="${p.name}" value="${p.defaultValue}" />
 		  </div>
-		`
-	  )
-	  .join('<br>');
-  
-	return `
+		`)
+        .join('<br>');
+    return `
 	  <!DOCTYPE html>
 	  <html lang="en">
 	  <head>
@@ -71,3 +68,4 @@ export function getWebviewHtml(instrName: string, params: { name: string; defaul
 	  </html>
 	`;
 }
+//# sourceMappingURL=mcrunView.js.map

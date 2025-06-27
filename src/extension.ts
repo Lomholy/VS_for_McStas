@@ -6,7 +6,10 @@ import { ComponentProvider, Component, activateComponentViewer, setMcStasPath} f
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 
+import { setExtensionRootPath } from './global_params';
+
 export function activate(context: vscode.ExtensionContext) {
+	setExtensionRootPath(context.extensionPath);
 	activateComponentViewer(context); // Read the component tree
 	context.subscriptions.push(// Allow user to insert a component
         vscode.commands.registerCommand('vs-for-mcstas.openCompDialog', openCompDialog)

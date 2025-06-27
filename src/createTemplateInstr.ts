@@ -12,7 +12,7 @@ export async function createTemplateInstr(context: vscode.ExtensionContext){
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
 
     // Define your source file path (adjust accordingly)
-    const rootPath = path.join(context.extensionPath, 'src', 'template.instr');
+    const rootPath = path.join(context.extensionPath, 'media', 'template.instr');
     let destPath = path.join(workspaceRoot, 'template.instr');
     if (fs.existsSync(destPath)) {
         const extension = path.extname(rootPath);
