@@ -24,7 +24,7 @@ export async function openCompDialog(filePath: string) {
     const panel = vscode.window.createWebviewPanel(
         'compDialog',
         'Component Parameters',
-        vscode.ViewColumn.Beside,
+        vscode.ViewColumn.Two,
         { enableScripts: true,
             retainContextWhenHidden: true
          }
@@ -290,7 +290,7 @@ function runPythonParserAndReadJSON(component: string): Promise<any> {
     if (!mcstasPath) {
         throw new Error("Missing configuration: componentViewer.rootPath");
     }
-    const pythonScript = path.join(extensionRootPath, 'src/component_reader.py');
+    const pythonScript = path.join(extensionRootPath, 'media/comp_parser.py');
     const outputPath = path.join(os.tmpdir(), 'comp_dict.json');
 
     return new Promise((resolve, reject) => {
