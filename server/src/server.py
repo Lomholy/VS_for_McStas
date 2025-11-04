@@ -22,7 +22,7 @@ def hello():
 #     return jsonify({"message": f"Component requested is {comp_name}"}) 
 
 @app.route('/get_all_comps')
-def hel():
+def get_all_comps():
 
     try:
         cr = ComponentReader("../../McCode/mcstas-comps", ".")
