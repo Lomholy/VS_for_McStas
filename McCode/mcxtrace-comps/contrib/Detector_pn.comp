@@ -1,0 +1,175 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: Detector_pn
+*
+* %Identification
+* Written by: Maria Thomsen (mariath@fys.ku.dk)
+* Date: Jan 24, 2011
+* Origin: NBI, KU
+* Version: McXtrace 1.2
+*
+* Block of a attenuating material
+* 
+* %Description
+* A scintillator detector model taking photoabsorption efficiency into account. As such it consitututes a
+* more physical version of the PSD_monitor. Only direct absorption is taken into account.
+*
+* Example: Detector_pn(restore_xray=restore_flag,filename="detector_Si", material_datafile="Si.txt", xwidth=1e-2, yheight=1e-2,zdepth=1e-5)
+*
+* %Parameters
+* INPUT PARAMETERS
+*
+* xwidth:[m]        Width of block.
+* yheight: [m]      Height of block.
+* zdepth: [m]       Thickness of block.
+* material_datafile: [str]   File where the material parameters for the scintillator may be found. Format is similar to what may be found off the NIST website.
+* nx: [m]           Number of pixel columns.
+* ny: [m]           Number of pixel rows.
+* filename: [str]   Name of file in which to store the detector image.
+* restore_xray: [ ] If set, the monitor does not influence the xray state.
+*
+* CALCULATED PARAMETERS:
+*
+* PSD_N:    Array of xray counts
+* PSD_p:    Array of xray weight counts
+* PSD_p2:   Array of second moments
+*
+* %Link
+* material datafile obtained from http://physics.nist.gov/cgi-bin/ffast/ffast.pl
+* %End
+*******************************************************************************/
+DEFINE COMPONENT Detector_pn
+
+SETTING PARAMETERS (string material_datafile="Be.txt",nx=90, ny=90, string filename="", restore_xray=0,xwidth=1e-2,yheight=1e-2,zdepth=1e-6)
+
+/*STATE PARAMETERS (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p)*/
+
+SHARE
+%{
+  %include "read_table-lib"
+%}
+
+DECLARE
+%{
+  double xmax;
+  double xmin;
+  double ymax;
+  double ymin;
+
+  int Z;
+  double At;
+  double rho;
+  t_Table T;
+
+  DArray2d PSD_N;
+  DArray2d PSD_p;
+  DArray2d PSD_p2;
+%}
+
+INITIALIZE
+%{
+  int status=0;
+ 
+  if(!xwidth || !yheight){
+    fprintf(stderr,"%s: Detector has zero effective area\n",NAME_CURRENT_COMP);
+    exit(0);
+  }
+  xmax=xwidth/2.0;
+  xmin=-xmax;
+  ymax=yheight/2.0;
+  ymin=-ymax;
+
+  //t_Table T;
+  if ( (status=Table_Read(&T,material_datafile,0))==-1){
+    fprintf(stderr,"Error: Could not parse file \"%s\" in COMP %s\n",material_datafile,NAME_CURRENT_COMP);
+    exit(-1);
+  }
+  char **header_parsed;
+  header_parsed=Table_ParseHeader(T.header,"Z","A[r]","rho","sigma[a]");
+  //if (!At) At=strtod(header_parsed[1],NULL);
+  //if (!Z) Z=strtol(header_parsed[0],NULL,10);
+  if (!rho) rho=strtod(header_parsed[2],NULL);
+  
+  if (xwidth  > 0) { xmax = xwidth/2;  xmin = -xmax; }
+  if (yheight > 0) { ymax = yheight/2; ymin = -ymax; }
+
+  if ((xmin >= xmax) || (ymin >= ymax)) {
+    printf("Detector_pn: %s: Null detection area !\n"
+        "ERROR        (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+        NAME_CURRENT_COMP);
+    exit(0);
+  }
+
+  PSD_N = create_darr2d(nx, ny);
+  PSD_p = create_darr2d(nx, ny);
+  PSD_p2 = create_darr2d(nx, ny);
+  
+  // Use instance name for monitor output if no input was given
+  if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+  double alpha,e,k,mu;
+  double l0,l1;
+  int i,j;
+  if (box_intersect(&l0,&l1,x,y,z,kx,ky,kz,xwidth,yheight,zdepth)){
+    PROP_DL(l0);
+    /*table interpolation*/
+    k=sqrt(kx*kx+ky*ky+kz*kz);
+    e=k*K2E;
+    mu=Table_Value(T,e,1)*rho*1e2;
+
+    l1-=l0; 
+    p*=(1-exp(-mu*l1));
+
+    //photon detected in surface pixel  
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    {
+      i = floor((x - xmin)*nx/(xmax - xmin));
+      j = floor((y - ymin)*ny/(ymax - ymin));
+#pragma acc atomic
+      PSD_N[i][j] = PSD_N[i][j] + 1;
+#pragma acc atomic
+      PSD_p[i][j] = PSD_p[i][j] + p;
+#pragma acc atomic
+      PSD_p2[i][j] = PSD_p2[i][j] + p*p;
+      SCATTER;
+    }
+    if (restore_xray) {
+      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+  }
+%}
+
+SAVE
+%{
+    DETECTOR_OUT_2D(
+        "Detector_pn",
+        "X position [cm]",
+        "Y position [cm]",
+        xmin*100.0, xmax*100.0, ymin*100.0, ymax*100.0,
+        nx, ny,
+        &PSD_N[0][0],&PSD_p[0][0],&PSD_p2[0][0],
+        filename);
+%}
+ 
+FINALLY
+%{
+  Table_Free(&T);
+  destroy_darr2d(PSD_N);
+  destroy_darr2d(PSD_p);
+  destroy_darr2d(PSD_p2);
+%}
+
+ 
+MCDISPLAY
+%{
+  box(0,0,0,xwidth,yheight,zdepth,0, 0, 1, 0);
+%}
+END

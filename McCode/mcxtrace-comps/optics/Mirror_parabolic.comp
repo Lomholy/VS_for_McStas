@@ -1,0 +1,266 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: Mirror_parabolic
+*
+* %Identification
+* Written by: Erik Knudsen
+* Date: Feb 11, 2010
+* Origin: Risoe
+*
+* Idealized parabolic mirror (in XZ)
+* 
+* %Description
+* Takes a reflectivity as input and reflects rays in a ideal geometry
+* parabolic mirror. The mirror is positioned in the zx-plane curving towards positive y.
+* I.e. the focal point is (0,0,f(a,b))
+* The geometry of the paraboloid is governed by the equation: y = x^2 / a^2 + z^2 / b^2
+* Hence, the focal length for the 'x' curve is f=a^2 / 4, and analogous for z.
+*
+* Example: Mirror_parabolic(R0=1, a=1, b=0, xwidth=0.02, yheight=0, zdepth=0.05)
+*
+* %Parameters
+* INPUT PARAMETERS
+* R0:     [1]  Reflectivity of mirror.
+* xwidth: [m]  Width of mirror.
+* zdepth: [m]  Length of mirror.
+* yheight:[m]  Thickness of mirror. If 0 (the default) the mirror is mathemticlly thin. Only has an effect for hitting the mirror from the side.
+* focusx: [m]  Transverse focal length along X. Sets a.
+* focusz: [m]  Longitudinal focal length along Z. Sets b.
+* radius: [m]  Focal length. Sets focusx and focusz.
+* a: [sqrt(m)] Transverse curvature scale, if zero - the mirror is flat along x.
+* b: [sqrt(m)] Longitudinal curvature scale, if zero, flat along z.
+* 
+* OUTPUT PARAMETERS
+* xmax: [m]     Mirrors' extent along x.
+* zmax: [m]     Mirrors' extent along z.
+* a2inv: [m^-2] Inverse of a^2.
+* b2inv: [m^-2] Inverse of b^2.
+* %End
+*******************************************************************************/
+
+
+DEFINE COMPONENT Mirror_parabolic
+
+SETTING PARAMETERS (R0=1, a=1, b=1, xwidth=0.1, zdepth=0.1, yheight=0,
+  focusx=0, focusz=0, radius=0)
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+
+DECLARE
+%{
+  double a2inv;
+  double b2inv;
+%}
+
+INITIALIZE
+%{
+  if (radius>0) focusx=focusz=radius;
+  if (focusx>0) a=2*sqrt(focusx); else focusx=a*a/4.0;
+  if (focusz>0) b=2*sqrt(focusz); else focusz=b*b/4.0;
+  
+  a2inv=(a!=0)?(1.0/(a*a)):0; /* if a==0, it is really infinity */
+  b2inv=(b!=0)?(1.0/(b*b)):0; /* if b==0, it is really infinity */
+  
+  
+%}
+
+TRACE
+%{
+    int status,first;
+    double l0,l1,sx,sz;
+    double nx,ny,nz,zz,xx, Y0;
+    if (b==0 && kx==0 && ky==0){
+      /*k || z and mirror invariant in z*/
+      zz=x*x*a2inv;
+      if(fabs(z-zz)<=yheight){
+        ABSORB;
+      }
+    }
+    if (a==0 && ky==0 && kz==0){
+      /*k || x and mirror invariant in x*/
+      xx=z*z*b2inv;
+      if(fabs(x-xx)<=yheight){
+        ABSORB;
+      }
+    }
+
+    /*find plane of entry - i.e. y=sign*x*x*a2inv + sign*z*z*b2inv,
+      and propagate the ray there.*/
+    Y0=(xwidth*xwidth/4.0*a2inv) + (zdepth*zdepth/4.0*b2inv);
+    plane_intersect(&l0,x,y,z,kx,ky,kz, 0,1,0,0,Y0,0);
+    if(l0>0){
+      PROP_DL(l0);
+    }
+    /*need a check for mirror limits here*/
+    if(a!=0){
+      sx= (a*a)/2.0 * ( x*a2inv * sqrt( (2*x*a2inv)*(2*x*a2inv) + 1) + asinh(2*x*a2inv)/2.0 );
+    }else{
+      sx=fabs(x);
+    }
+    if(b!=0){
+      sz= (b*b)/2.0 * ( z*b2inv * sqrt( (2*z*b2inv)*(2*z*b2inv) + 1) + asinh(2*z*b2inv)/2.0 );
+    }else{
+      sz=fabs(z);
+    }
+
+    if( fabs(sx)>xwidth/2.0 || fabs(sz)>zdepth/2.0 ){
+      /*Path length to either x or z coordinate bigger than mirror limits
+       * => we have missed the mirror.*/
+      RESTORE_XRAY(INDEX_CURRENT_COMP,x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p);
+    }else{
+      /*The intersect routine assumes a parabola opening towards positive z
+        so swap y and z.*/
+      first=1;
+      status=paraboloid_intersect(&l0,&l1,x,z,y,kx,kz,ky, a,b,0);
+      /*if l0==0, assume that we should pick l1 instead (if it is positive).*/
+      double ll;
+      if (l0>0){
+        ll=l0;
+      } else if (l1>0) {
+        ll=l1;
+      } else {
+        /*both l0 and l1 <=0*/
+        status=0;
+      }
+      while(status) {
+        PROP_DL(ll);
+        /*reflect in normal - again swap y and z.*/
+        paraboloid_normal(&nx,&nz,&ny, x,z,y, a,b,1);
+
+        double s=scalar_prod(kx,ky,kz,nx,ny,nz);
+        if (s!=0){
+          kx -= s*2*nx;
+          ky -= s*2*ny;
+          kz -= s*2*nz;
+        }
+        SCATTER;
+
+        p*=R0;
+        /*update phase - as an approximation turn by 180 deg.*/
+        phi+=M_PI;
+        first=0;
+        status=paraboloid_intersect(&l0,&l1,x,z,y,kx,kz,ky, a,b,0);
+        /*need to check if the new reflection point is within mirror limits*/
+        if(status){
+          if(l0>0){
+            ll=l0;
+          }else if (l1>0){
+            ll=l1;
+          }else{
+            status=0;break;
+          }
+
+          double knx,kny,knz;
+          knx=kx;kny=ky;knz=kz;
+          NORM(knx,kny,knz);
+
+          double xx=x+knx*ll;
+          if(a!=0){
+            sx= (a*a)/2.0 * ( xx*a2inv * sqrt( (2*xx*a2inv)*(2*xx*a2inv) + 1) + asinh(2*xx*a2inv)/2.0 );
+          }else{
+            sx=fabs(xx);
+          }
+          double zz=z+knz*ll;
+          if(b!=0){
+            sz= (b*b)/2.0 * ( zz*b2inv * sqrt( (2*zz*b2inv)*(2*zz*b2inv) + 1) + asinh(2*zz*b2inv)/2.0 );
+          }else{
+            sz=fabs(zz);
+          }
+          if(fabs(sx)>xwidth/2.0 || fabs(sz)>zdepth/2.0 ){
+            status=0;break;
+          }
+        }
+      }
+    }
+%}
+
+MCDISPLAY
+%{
+  const int Ni=25;
+  const int Nj=25;
+
+
+  double dx=xwidth/(Ni);
+  double dz=zdepth/(Nj);
+  double x0,x1,z0,z1,y[4],xmin,xmax,zmin,zmax;
+  int i,j;
+  
+  magnify("");
+               
+  line(-xwidth/2.0,0,-zdepth/2.0, xwidth/2.0,0,-zdepth/2.0);
+  line(-xwidth/2.0,0, zdepth/2.0, xwidth/2.0,0, zdepth/2.0);
+  line(-xwidth/2.0,0,-zdepth/2.0,-xwidth/2.0,0, zdepth/2.0);
+  line( xwidth/2.0,0,-zdepth/2.0, xwidth/2.0,0, zdepth/2.0);
+
+  /*find the limits in x and z*/  
+  x0=0;x1=xwidth/2.0;
+  if(a!=0){
+    double xx=(x1+x0)/2.0;
+    double sx= (a*a)/2.0 * ( xx*a2inv * sqrt( (2*xx*a2inv)*(2*xx*a2inv) + 1) + asinh(2*xx*a2inv)/2.0 );
+    i=0;
+    while ( fabs(sx-xwidth/2.0)>1e-4 && i<100){
+      if ((sx-xwidth/2.0)>0){
+        x1=xx;
+      }else{
+        x0=xx;
+      }
+      xx=(x1+x0)/2.0;
+      sx= (a*a)/2.0 * ( xx*a2inv * sqrt( (2*xx*a2inv)*(2*xx*a2inv) + 1) + asinh(2*xx*a2inv)/2.0 );
+      i++;
+    }
+    xmax=xx;
+  }else{
+    xmax=xwidth/2.0;
+  }
+
+
+  z0=0;z1=zdepth/2.0;
+  if(b!=0){
+    double zz=(z1+z0)/2.0;
+    double sz= (b*b)/2.0 * ( zz*b2inv * sqrt( (2*zz*b2inv)*(2*zz*b2inv) + 1) + asinh(2*zz*b2inv)/2.0 );
+    j=0;
+    while ( fabs(sz-zdepth/2.0)>1e-4 && j<100){
+      if ((sz-zdepth/2.0)>0){
+        z1=zz;
+      }else{
+        z0=zz;
+      }
+      zz=(z1+z0)/2.0;
+      sz= (b*b)/2.0 * ( zz*b2inv * sqrt( (2*zz*b2inv)*(2*zz*b2inv) + 1) + asinh(2*zz*b2inv)/2.0 );
+      j++;
+    }
+    zmax=zz;
+  }else{
+    zmax=zdepth/2.0;
+  }
+
+  dx=2.0*xmax/(Ni);
+  dz=2.0*zmax/(Nj);
+  /*approximate the mirror bounds by width and depth to avoid inverting the sx and sz functions*/
+  /*mirror is symmetric around x,z=0,0. so we c an use xmax and zmax.*/
+  for (i=0;i<Ni;i++){
+    x0=i*dx - xmax;
+    x1=(i+1)*dx - xmax;
+    for (j=0;j<Nj;j++){
+      z0=j*dz - zmax;
+      z1=(j+1)*dz - zmax;
+      y[0]=x0*x0*a2inv + z0*z0*b2inv;
+      y[1]=x1*x1*a2inv + z0*z0*b2inv;
+      y[2]=x0*x0*a2inv + z1*z1*b2inv;
+      y[3]=x1*x1*a2inv + z1*z1*b2inv;
+
+      line(x0,y[0],z0, x1,y[1],z0);
+      line(x0,y[0],z0, x0,y[2],z1);
+      if(i==Ni-1) line(x1,y[1],z0, x1,y[3],z1);
+      if(j==Nj-1) line(x0,y[2],z1, x1,y[3],z1);
+    }
+  }
+
+%}
+
+END

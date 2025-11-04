@@ -1,0 +1,130 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Component = exports.ComponentProvider = void 0;
+exports.askUserForPath = askUserForPath;
+exports.setMcStasPath = setMcStasPath;
+exports.activateComponentViewer = activateComponentViewer;
+const vscode = require("vscode");
+const fs = require("fs");
+const path = require("path");
+async function askUserForPath() {
+    const folders = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: 'Select a folder for Component Viewer'
+    });
+    if (folders && folders.length > 0) {
+        return folders[0].fsPath;
+    }
+    return undefined;
+}
+async function setMcStasPath() {
+    let rootPath = await askUserForPath();
+    if (rootPath) {
+        await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
+    }
+    else {
+        vscode.window.showWarningMessage('No path selected for Component Viewer.');
+        return;
+    }
+}
+async function activateComponentViewer(context) {
+    let rootPath = vscode.workspace.getConfiguration().get('componentViewer.rootPath');
+    if (!rootPath) {
+        rootPath = await askUserForPath();
+        if (rootPath) {
+            await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
+        }
+        else {
+            vscode.window.showWarningMessage('No path selected for Component Viewer.');
+            return;
+        }
+    }
+    vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(rootPath));
+}
+class ComponentProvider {
+    constructor(workspaceRoot) {
+        this.workspaceRoot = workspaceRoot;
+        this._onDidChangeTreeData = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+    }
+    refresh() {
+        this._onDidChangeTreeData.fire();
+    }
+    getTreeItem(element) {
+        const treeItem = new vscode.TreeItem(element.label, element.collapsibleState);
+        treeItem.command = {
+            command: 'vs-for-mcstas.openCompDialog',
+            title: 'Open .comp file',
+            arguments: [element.fullPath]
+        };
+        return treeItem;
+    }
+    getChildren(element) {
+        if (!this.workspaceRoot) {
+            vscode.window.showInformationMessage('No folder found');
+            return Promise.resolve([]);
+        }
+        const dirPath = element ? element.fullPath : this.workspaceRoot;
+        return Promise.resolve(this.getComponentsInDirectory(dirPath));
+    }
+    getComponentsInDirectory(dirPath) {
+        if (!this.pathExists(dirPath)) {
+            return [];
+        }
+        const entries = fs.readdirSync(dirPath);
+        const items = entries.map(name => {
+            const fullPath = path.join(dirPath, name);
+            const stat = fs.statSync(fullPath);
+            return { name, fullPath, isDirectory: stat.isDirectory() };
+        })
+            .filter(entry => {
+            // Always ignore 'data' and 'examples' folders
+            if (entry.isDirectory && (entry.name === 'data' || entry.name === 'examples')) {
+                return false;
+            }
+            // If we are at the root level, show only folders
+            if (dirPath === this.workspaceRoot) {
+                return entry.isDirectory;
+            }
+            else {
+                // Inside folders: show folders + .comp files only
+                return entry.isDirectory || entry.name.endsWith('.comp');
+            }
+        })
+            .map(entry => new Component(entry.name, entry.fullPath, entry.isDirectory
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.None));
+        return items;
+    }
+    pathExists(p) {
+        try {
+            fs.accessSync(p);
+        }
+        catch (err) {
+            return false;
+        }
+        return true;
+    }
+}
+exports.ComponentProvider = ComponentProvider;
+class Component extends vscode.TreeItem {
+    constructor(label, fullPath, collapsibleState) {
+        super(label, collapsibleState);
+        this.label = label;
+        this.fullPath = fullPath;
+        this.collapsibleState = collapsibleState;
+        this.contextValue = 'compFile'; // <- very important
+        this.tooltip = this.fullPath;
+        this.resourceUri = vscode.Uri.file(this.fullPath);
+        if (fs.existsSync(this.fullPath)) {
+            const stat = fs.statSync(this.fullPath);
+            this.iconPath = stat.isDirectory()
+                ? vscode.ThemeIcon.Folder
+                : vscode.ThemeIcon.File;
+        }
+    }
+}
+exports.Component = Component;
+//# sourceMappingURL=componentProvider.js.map

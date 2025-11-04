@@ -1,0 +1,109 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: Monitor
+*
+* %Identification
+* Written by: Erik Knudsen
+* Based on neutron component written by Kristian Nielsen and Kim Lefmann
+*
+* Date: June 22, 2009
+* Origin: Risoe
+* Release: McXtrace 0.1
+*
+* Simple monitor.
+*
+* %Description
+* A square single monitor that measures the intergated intensity of the incoming x-rays.
+*
+* Example: Monitor(xwidth=0.1, yheight=0.1)
+*
+* %Parameters
+* INPUT PARAMETERS:
+*
+* xwidth:   [m] Width of detector.
+* yheight:  [m] Height of detector.
+* restore_xray: [m] If set, the monitor does not influence the xray state
+*
+* CALCULATED PARAMETERS:
+*
+* N:      Array of x.ray counts
+* p:      Array of x-ray weight counts
+* p2:     Array of second moments
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT Monitor
+
+SETTING PARAMETERS (xwidth=0.1, yheight=0.1, restore_xray=0)
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+DECLARE
+%{
+  double Nsum;
+  double psum;
+  double p2sum;
+  double xmin;
+  double xmax;
+  double ymin;
+  double ymax;
+%}
+
+INITIALIZE
+%{
+    xmax = xwidth/2;  xmin = -xmax;
+    ymax = yheight/2; ymin = -ymax;
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+            printf("E_monitor: %s: Null detection area !\n"
+                   "ERROR      (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+           NAME_CURRENT_COMP);
+      exit(0);
+    }
+    Nsum=0;
+    psum=0;
+    p2sum=0;
+%}
+
+TRACE
+%{
+    PROP_Z0;
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    {
+      double p2 = p*p;
+#pragma acc atomic
+      Nsum = Nsum +1;;
+#pragma acc atomic
+      psum += p;
+#pragma acc atomic
+      p2sum += p2;
+      SCATTER;
+    }
+    if (restore_xray) {
+      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+%}
+
+SAVE
+%{
+  char title[1024];
+  snprintf(title,1023,"Single monitor %s",NAME_CURRENT_COMP);
+  DETECTOR_OUT_0D(title, (double) Nsum, psum, p2sum);
+%}
+
+MCDISPLAY
+%{
+  
+  multiline(5, (double)xmin, (double)ymin, 0.0,
+               (double)xmax, (double)ymin, 0.0,
+               (double)xmax, (double)ymax, 0.0,
+               (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+%}
+
+END

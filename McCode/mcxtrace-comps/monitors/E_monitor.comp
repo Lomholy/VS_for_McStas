@@ -1,0 +1,131 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: E_monitor
+*
+* %Identification
+* Written by: Erik Knudsen
+* Based on neutron component written by Kristian Nielsen and Kim Lefmann
+*
+* Date: June 22, 2009
+* Origin: Risoe
+* Release: McXtrace 0.1
+*
+* Energy-sensitive monitor.
+*
+* %Description
+* A square single monitor that measures the energy of the incoming x-rays.
+*
+* Example: E_monitor(xwidth=0.1, yheight=0.1,
+*                 Emin=1, Emax=50, nE=20, filename="Output.nrj")
+*
+* %Parameters
+* INPUT PARAMETERS:
+*
+* xwidth:       [m]   Width of detector. 
+* yheight:      [m]   Height of detector. 
+* Emin:         [keV] Minimum energy to detect.
+* Emax:         [keV] Maximum energy to detect.
+* nE:           [m]   Number of energy channels.
+* filename:     [str] Name of file in which to store the detector image.
+* restore_xray: [0/1] If set, the monitor does not influence the x-ray state.
+*
+* CALCULATED PARAMETERS:
+*
+* E_N:      Array of x-ray counts
+* E_p:      Array of x-ray weight counts
+* E_p2:     Array of second moments
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT E_monitor
+
+SETTING PARAMETERS (nE=20, string filename=0, 
+  xwidth=0.1, yheight=0.1, Emin, Emax, restore_xray=0)
+
+DECLARE
+%{
+  DArray1d E_N;
+  DArray1d E_p;
+  DArray1d E_p2;
+  double xmin;
+  double xmax;
+  double ymin;
+  double ymax;
+%}
+
+INITIALIZE
+%{
+    int i;
+
+    xmax = xwidth/2;  xmin = -xmax;
+    ymax = yheight/2; ymin = -ymax;
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+            printf("E_monitor (%s): Null detection area !\n"
+                   "ERROR      (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+           NAME_CURRENT_COMP);
+      exit(0);
+    }
+
+  E_N = create_darr1d(nE);
+  E_p = create_darr1d(nE);
+  E_p2 = create_darr1d(nE);
+
+  // Use instance name for monitor output if no input was given
+  if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+    int i;
+    double E;
+
+    PROP_Z0;
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    {
+      E = K2E*sqrt(kx*kx + ky*ky + kz*kz);
+
+      i = floor((E-Emin)*nE/(Emax-Emin));
+      if(i >= 0 && i < nE)
+      {
+#pragma acc atomic
+        E_N[i] = E_N[i] + 1;
+#pragma acc atomic
+        E_p[i] = E_p[i] + p;
+#pragma acc atomic
+        E_p2[i] = E_p2[i] + p*p;
+        SCATTER;
+      }
+    }
+    if (restore_xray) {
+      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+%}
+
+SAVE
+%{
+    DETECTOR_OUT_1D(
+        "Energy monitor",
+        "Energy [keV]",
+        "Intensity",
+        "E", Emin, Emax, nE,
+        &E_N[0],&E_p[0],&E_p2[0],
+        filename);
+%}
+
+MCDISPLAY
+%{
+  multiline(5, (double)xmin, (double)ymin, 0.0,
+               (double)xmax, (double)ymin, 0.0,
+               (double)xmax, (double)ymax, 0.0,
+               (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+%}
+
+END

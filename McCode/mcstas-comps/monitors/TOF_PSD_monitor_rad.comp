@@ -1,0 +1,150 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: TOF_PSD_monitor_rad
+*
+* %Identification
+* Written by: Kim Lefmann
+* Modified from: PSD_monitor_rad by Henrich Frielinghaus, FZJuelich
+* Date:       March 2012
+* Origin:     UCPH
+* Modified by:
+*
+* Position-sensitive TOF monitor with radially averaging.
+*
+* %D
+* TOF monitor that performs radial averaging.
+* Comment: The intensity is given as two 2D files:
+*          1) a radial sum vs. TOF
+*          2) a radial average (i.e. intensity per area) vs. TOF
+*
+* Example: TOF_PSD_monitor_rad(rmax=0.2, nr=100, filename="Output.psd", filename_av="Output_av.psd")
+*
+* %P
+* INPUT PARAMETERS:
+*
+* rmax: [m]              Outer radius of detector
+* nr: [1]                Number of concentric circles
+* filename: [string]     Name of file in which to store the detector image
+* filename_av: [string]  Name of file in which to store the averaged detector image
+* nt: [1]                Number of time bins
+* tmin: [mu-s]           Beginning of time window
+* tmax: [mu-s]           End of time window
+* nowritefile: [1]       If set, monitor will skip writing to disk
+* restore_neutron: [1]   If set, the monitor does not influence the neutron state	
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT TOF_PSD_monitor_rad
+
+SETTING PARAMETERS (int nr=100, int nt=100, int nowritefile=0,
+  string filename=0, string filename_av=0, rmax=0.2, tmin, tmax, int restore_neutron=0)
+
+
+DECLARE
+%{
+  double tt_0;
+  double tt_1;
+
+  DArray2d TOFPSDr_N;
+  DArray2d TOFPSDr_p;
+  DArray2d TOFPSDr_p2;
+  DArray2d TOFPSDr_av_p;
+  DArray2d TOFPSDr_av_p2;
+%}
+
+INITIALIZE
+%{
+  TOFPSDr_N = create_darr2d(nt, nr);
+  TOFPSDr_p = create_darr2d(nt, nr);
+  TOFPSDr_p2 = create_darr2d(nt, nr);
+  TOFPSDr_av_p = create_darr2d(nt, nr);
+  TOFPSDr_av_p2 = create_darr2d(nt, nr);
+
+  tt_0=tmin*1e-6;
+  tt_1=tmax*1e-6;
+
+  // Use instance name for monitor output if no input was given
+  if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+
+  // Use instance name for monitor output if no input was given
+  if (!strcmp(filename_av,"\0")) sprintf(filename_av,"%s%s",NAME_CURRENT_COMP,"_avg");
+%}
+
+TRACE
+%{
+  int i,j;
+  double dt,radpos;
+
+  PROP_Z0;
+
+  radpos = sqrt(x*x+y*y);
+  i = floor((t-tt_0)*nt/(tt_1-tt_0));              /* Bin number */
+  j = floor(nr*radpos/rmax);
+
+  if (radpos < rmax && i>=0 && i < nt)
+  {
+    double p2 = p*p;
+    #pragma acc atomic
+    TOFPSDr_N[i][j] = TOFPSDr_N[i][j]+1;
+    #pragma acc atomic
+    TOFPSDr_p[i][j] = TOFPSDr_p[i][j]+p;
+    #pragma acc atomic
+    TOFPSDr_p2[i][j] = TOFPSDr_p2[i][j]+p2;
+    SCATTER;
+  }
+
+  if (restore_neutron) {
+    RESTORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  }
+%}
+
+SAVE
+%{
+if (!nowritefile) {
+  int i, j;
+  for(i=0; i<nt; i++)
+    for(j=0; j<nr; j++) {
+      TOFPSDr_av_p[i][j]  = TOFPSDr_p[i][j]  / (PI*rmax*rmax/(nr*nr)*(2*j+1.0));
+      TOFPSDr_av_p2[i][j] = TOFPSDr_p2[i][j]
+        / (PI*rmax*rmax/(nr*nr)*(2*j+1.0)) / (PI*rmax*rmax/(nr*nr)*(2*j+1.0));
+    }
+  DETECTOR_OUT_2D(
+    "TOF PSD monitor radial sum",
+    "Time-of-flight [\\gms]",
+    "Radius [m]",
+    tmin, tmax, 0, rmax,
+    nt, nr,
+    &TOFPSDr_N[0][0],&TOFPSDr_p[0][0],&TOFPSDr_p2[0][0],
+    filename);
+  DETECTOR_OUT_2D(
+    "TOF PSD monitor radial average",
+    "Time-of-flight [\\gms]",
+    "Radius [m]",
+    tmin, tmax, 0, rmax,
+    nt, nr,
+    &TOFPSDr_N[0][0],&TOFPSDr_av_p[0][0],&TOFPSDr_av_p2[0][0],
+    filename_av);
+}
+%}
+
+FINALLY
+%{
+  destroy_darr2d(TOFPSDr_N);
+  destroy_darr2d(TOFPSDr_p);
+  destroy_darr2d(TOFPSDr_p2);
+  destroy_darr2d(TOFPSDr_av_p);
+  destroy_darr2d(TOFPSDr_av_p2);
+%}
+
+MCDISPLAY
+%{
+  circle("xy",0,0,0,rmax);
+%}
+
+END

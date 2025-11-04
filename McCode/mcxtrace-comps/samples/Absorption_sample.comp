@@ -1,0 +1,283 @@
+/*******************************************************************************
+*
+* McXtrace, X-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: Absorption_sample
+*
+* %Identification
+*
+* Written by:Erik B Knudsen
+* Date: March 2011
+* Version: 1.0
+* Origin: Risoe
+*
+* Sample component with absorbing materials.
+*
+* %Description
+* A sample component consisting of a volume of one material and volume of another 
+* material inside. This is useful as a phantom for simulating tomography experiments.
+* The inner material can be left unset (all 0), to only have one volume.
+*
+* Sample shape may be a cylinder, a sphere, a box or any other shape
+*   box/plate:       xwidth x yheight x zdepth
+*   cylinder:        radius x yheight
+*   sphere:          radius (yheight=0)
+*   any shape:       geometry=OFF/PLY file
+*
+* Example: Absorption_sample( material_datafile_o="Mn.txt", xwidth_o = 0.5, yheight_o = 0.5, zdepth_o = 0.0001, rho_o=7.15 )
+*
+* %P
+* Input parameters: 
+* radius_o:           [m] Radius of "outer" enclosing material cylinder (0)
+* xwidth_o:           [m] Width of "outer" enclosing material box (yheight)
+* yheight_o:          [m] Height of "outer enclosing material box (1) 
+* zdepth_o:           [m] Thickness of outer enclosing material box (yheight)
+* radius_i:           [m] Radius of "inner" enclosed material cylinder (0)
+* xwidth_i:           [m] Width of "inner" enclosed material box (yheight)
+* yheight_i:          [m] Height of "inner enclosed material (1) 
+* zdepth_i:           [m] Thickness of inner enclosed material box (yheight)
+* x_i:                [m] Center x-coordinate of "inner" object
+* y_i:                [m] Center y-coordinate of "inner" object
+* z_i:                [m] Center z-coordinate of "inner" object
+* rho_i:              [g/cm^3] density of the enclosed material
+* rho_o:              [g/cm^3] density of the enclosing material
+* material_datafile_o:[str] Name of file containing material data for outer volume.
+* material_datafile_i:[str] Name of file containing material data for inclusion.
+* geometry_o:         [str] Name of the outer Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust
+* geometry_i:         [str] Name of an inner Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust [str]
+*
+* %Link
+* Meshlab https://www.meshlab.net/
+* %Link
+* Geomview and Object File Format (OFF) <http://www.geomview.org>
+* %Link
+* Java version of Geomview (display only) jroff.jar <http://www.holmes3d.net/graphics/roffview/> 
+* %Link
+* qhull <http://qhull.org>
+* %Link
+* Powercrust https://www.cs.ucdavis.edu/~amenta/powercrust.html
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT Absorption_sample
+
+SETTING PARAMETERS (string material_datafile_i="",string material_datafile_o="",
+    radius_o=0,xwidth_o=0,yheight_o=1,zdepth_o=0,
+    radius_i=0,xwidth_i=0,yheight_i=0.0,zdepth_i=0,
+    x_i=0,y_i=0,z_i=0,rho_i=0,rho_o=0,
+    string geometry_i="", string geometry_o="")
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+
+SHARE
+%{
+  %include "read_table-lib"
+  %include "interoff-lib"
+  
+  #ifndef SHAPES_T
+  #define SHAPES_T
+  enum shapes_t {NONE=-1,SPHERE, CYLINDER, CUBE, ELLIPSOID, ANY};
+  #endif
+%}
+
+DECLARE
+%{
+  double Z_A_o;
+  double V_o;
+  int E_c_o;
+  int l_c_o;
+  int mu_c_o;
+  double Z_A_i;
+  double V_i;
+  int E_c_i;
+  int l_c_i;
+  int mu_c_i;
+  t_Table t_o;
+  t_Table t_i;
+  off_struct offdata_o;
+  off_struct offdata_i;
+  int shape_i;
+  int shape_o;
+%}
+
+INITIALIZE
+%{
+  int status;
+  V_i = 1;
+  
+  /* Checking volumes */
+  if (geometry_o && strlen(geometry_o) && strcmp(geometry_o, "NULL") && strcmp(geometry_o, "0")) {
+	  if (!off_init(geometry_o, xwidth_o, yheight_o, zdepth_o, 0, &offdata_o))
+      exit(printf("Absorption_sample: %s: FATAL: invalid OFF/PLY geometry specification for file '%s'.\n",
+      NAME_CURRENT_COMP, geometry_o));
+    shape_o = ANY;
+  } else if (!yheight_o && !xwidth_o && !zdepth_o && radius_o)
+    shape_o = SPHERE;
+  else if (yheight_o && radius_o)
+    shape_o = CYLINDER;
+  else if (yheight_o && !radius_o) {
+    if (!zdepth_o) zdepth_o=yheight_o;
+    if (!xwidth_o) xwidth_o=yheight_o;
+    shape_o = CUBE;
+  } else {
+    exit(fprintf(stderr,"ERROR: %s: Unmeaningful outer volume description.\n",NAME_CURRENT_COMP));
+  }
+  
+  
+  if (geometry_i && strlen(geometry_i) && strcmp(geometry_i, "NULL") && strcmp(geometry_i, "0")) {
+	  if (!off_init(geometry_i, xwidth_i, yheight_i, zdepth_i, 0, &offdata_i))
+      exit(printf("Absorption_sample: %s: FATAL: invalid OFF/PLY geometry specification for file '%s'.\n",
+      NAME_CURRENT_COMP, geometry_i));
+    shape_i = ANY;
+  } else if (!yheight_i && !xwidth_i && !zdepth_i && radius_i)
+    shape_i = SPHERE;
+  else if (yheight_i && radius_i)
+    shape_i = CYLINDER;
+  else if (yheight_i && !radius_i) {
+    if (!zdepth_i) zdepth_i=yheight_i;
+    if (!xwidth_i) xwidth_i=yheight_i;
+    shape_i = CUBE;
+  } else {
+    fprintf(stderr,"Warning: %s: Invalid inner volume specification. Ignoring.\n",NAME_CURRENT_COMP);
+    V_i=0;
+    shape_i=NONE;
+  }
+  
+  /* Loading datafiles */
+  if ( material_datafile_o && (status=Table_Read(&t_o,material_datafile_o,0))==-1){
+    fprintf(stderr,"Error: (%s) Could not parse file \"%s\".\n",NAME_CURRENT_COMP,material_datafile_o);
+    exit(-1);
+  }
+  if (t_o.columns==3) {  /*which column is the energy in and which holds mu*/
+    E_c_o=0;mu_c_o=1;
+  }else{
+    E_c_o=0;mu_c_o=5;
+  }
+  if(rho_o==0){
+    char **header_parsed;
+    header_parsed=Table_ParseHeader(t_o.header,"Z","A[r]","rho","Z/A",NULL);
+    if(header_parsed[3]){ /*assuming that a Z/A is given, i.e. Z and A[r] are redundant*/
+      Z_A_o=strtod(header_parsed[3],NULL);
+    }else if ( (strlen(header_parsed[0])) && (strlen(header_parsed[1])) ){
+      Z_A_o=strtod(header_parsed[0],NULL)/strtod(header_parsed[1],NULL);
+    }
+    if(strlen(header_parsed[2])){
+      rho_o=strtod(header_parsed[2],NULL);
+      printf("INFO: %s: Setting rho_o=%g from %s\n", NAME_CURRENT_COMP, rho_o, material_datafile_o);
+    }
+  }
+  if (V_i){ /*if volume is zero - don't bother to read the file*/
+    if ( material_datafile_i && (status=Table_Read(&t_i,material_datafile_i,0))==-1){
+      fprintf(stderr,"Error: Could not parse file \"%s\" in COMP %s\n",material_datafile_i,NAME_CURRENT_COMP);
+      exit(-1);
+    }
+    if (t_i.columns==3) {
+      E_c_i=0;mu_c_i=1;
+    }else{
+      E_c_i=0;mu_c_i=5;
+    }
+    if(rho_i==0){ /*when density is not from input, try to read from tables */
+      char **header_parsed;
+      header_parsed=Table_ParseHeader(t_i.header,"Z","A[r]","rho","Z/A",NULL);
+      if(header_parsed[3]){/*assuming that a Z/A is given, i.e. Z and A[r] are redundant*/
+        Z_A_i=strtod(header_parsed[3],NULL);
+      }else if ( (strlen(header_parsed[0])) && (strlen(header_parsed[1])) ){
+        Z_A_i=strtod(header_parsed[0],NULL)/strtod(header_parsed[1],NULL);
+      }
+      if(strlen(header_parsed[2])){
+        rho_i=strtod(header_parsed[2],NULL);
+        printf("INFO: %s: Setting rho_i=%g from %s\n", NAME_CURRENT_COMP, rho_i, material_datafile_i);
+      }
+    }
+  }
+%}
+
+TRACE
+%{
+  double l0o=0,l1o=0,l0i=0,l1i=0,mu_o=0,mu_i=0;
+  int status,status_i;
+  
+  if (shape_o==ANY) {
+    status= off_x_intersect    (&l0o, &l1o, NULL, NULL, x,y,z, kx,ky,kz, offdata_o);
+  } else if (shape_o==CYLINDER) {
+    status=cylinder_intersect  (&l0o,&l1o,x,y,z,kx,ky,kz,radius_o,yheight_o);
+  } else if (shape_o==CUBE) {
+    status=box_intersect       (&l0o,&l1o,x,y,z,kx,ky,kz,xwidth_o,yheight_o,zdepth_o);
+  } else if (shape_o==SPHERE) {
+    status=sphere_intersect    (&l0o,&l1o,x,y,z,kx,ky,kz,radius_o);
+  }
+  
+  if (status ){ /*rays intersects the enclosing material*/
+    PROP_DL(l0o);
+    SCATTER;
+    status_i=0;
+    double k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz));
+    
+    if (shape_i==ANY) {
+      status_i= off_x_intersect    (&l0i, &l1i, NULL, NULL, (x-x_i),(y-y_i),(z-z_i), kx,ky,kz, offdata_i);
+    } else if (shape_i==CYLINDER) {
+      status_i=cylinder_intersect  (&l0i,&l1i,(x-x_i),(y-y_i),(z-z_i),kx,ky,kz,radius_i,yheight_i);
+    } else if (shape_i==CUBE) {
+      status_i=box_intersect       (&l0i,&l1i,(x-x_i),(y-y_i),(z-z_i),kx,ky,kz,xwidth_i,yheight_i,zdepth_i);
+    } else if (shape_i==SPHERE) {
+      status_i=sphere_intersect    (&l0i,&l1i,(x-x_i),(y-y_i),(z-z_i),kx,ky,kz,radius_i);
+    }
+    
+    if(status_i){ /*rays intersect the inclusion*/
+      PROP_DL(l0i);
+      SCATTER;
+      PROP_DL(l1i-l0i);
+      SCATTER;
+      /*now calculate the mu*/
+      mu_i=Table_Value(t_i,k*K2E,mu_c_i)*rho_i;
+      p*=exp(-(l1i-l0i)*mu_i*1e2); /* 1e2 to have in m unit */
+    }
+    PROP_DL(l1o-l0o-l1i);
+    SCATTER;
+    mu_o=Table_Value(t_o,k*K2E,mu_c_o)*rho_o;
+    p*=exp(-(l1o-l0o-(l1i-l0i))*mu_o*1e2);
+  }
+%}
+
+MCDISPLAY
+%{
+  
+  if (shape_o==CUBE){
+    box(0,0,0,xwidth_o,yheight_o,zdepth_o,0, 0, 1, 0);
+  } else if (shape_o==CYLINDER){
+    circle("xy",0, yheight_o/2.0,0,radius_o);
+    circle("xy",0,-yheight_o/2.0,0,radius_o);
+    line( radius_o,yheight_o/2.0,0, radius_o,-yheight_o/2.0,0);
+    line(-radius_o,yheight_o/2.0,0,-radius_o,-yheight_o/2.0,0);
+    line(0,yheight_o/2.0, radius_o, 0,-yheight_o/2.0, radius_o);
+    line(0,yheight_o/2.0,-radius_o, 0,-yheight_o/2.0,-radius_o);
+  } else if (shape_o==SPHERE){
+    circle("xy",0,0,0,radius_o);
+    circle("xz",0,0,0,radius_o);
+    circle("yz",0,0,0,radius_o);
+  } else if (shape_o == ANY) {	/* OFF file */
+    off_display(offdata_o);
+  }
+  
+  if (shape_i==CUBE){
+    box(0,0,0,xwidth_i,yheight_i,zdepth_i,0, 0, 1, 0);
+  } else if (shape_i==CYLINDER){
+    circle("xy",0, yheight_i/2.0,0,radius_i);
+    circle("xy",0,-yheight_i/2.0,0,radius_i);
+    line( radius_i,yheight_i/2.0,0, radius_i,-yheight_i/2.0,0);
+    line(-radius_i,yheight_i/2.0,0,-radius_i,-yheight_i/2.0,0);
+    line(0,yheight_i/2.0, radius_i, 0,-yheight_i/2.0, radius_i);
+    line(0,yheight_i/2.0,-radius_i, 0,-yheight_i/2.0,-radius_i);
+  } else if (shape_i==SPHERE){
+    circle("xy",0,0,0,radius_i);
+    circle("xz",0,0,0,radius_i);
+    circle("yz",0,0,0,radius_i);
+  } else if (shape_i == ANY) {	/* OFF file */
+    off_display(offdata_i);
+  }
+  
+%}
+
+END

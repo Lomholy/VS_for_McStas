@@ -1,0 +1,138 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: TOF_monitor
+*
+* %Identification
+* Written by: Erik B Knudsen
+* Date: Aug. 2014
+* Origin: British Airways
+* Release: 1.2
+*
+* Rectangular Time-of-flight monitor.
+*
+* %Description
+* Rectangular Time-of-flight monitor. You may either give the time-step or the 
+* time range.
+*
+* %Parameters
+* INPUT PARAMETERS:
+*
+* xwidth:   [m] Width of detector.
+* yheight:  [m] Height of detector.
+* nt:       [1] Number of time bins
+* dt:       [mu-s] Length of each time bin
+* tmin:     [mu-s] Lower time limit
+* tmax:     [mu-s] Upper time limit. When left as 0, use dt to compute tmax.
+* filename: [str] Name of file in which to store the detector image
+* restore_xray: [1] If set, the monitor does not influence the xray state 
+*
+* CALCULATED PARAMETERS:
+*
+* TOF_N:    Array of xray counts
+* TOF_p:    Array of xray weight counts
+* TOF_p2:   Array of second moments
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT TOF_monitor
+
+SETTING PARAMETERS (int nt=20, string filename=0, 
+    xwidth=0.1, yheight=0.1, tmin=0, tmax=0, dt=1.0, restore_xray=0)
+
+DECLARE
+  %{
+    DArray1d TOF_N;
+    DArray1d TOF_p;
+    DArray1d TOF_p2;
+    double t_min;
+    double t_max;
+    double delta_t;
+    double xmin;
+    double xmax;
+    double ymin;
+    double ymax;
+  %}
+INITIALIZE
+  %{
+    int i;
+
+    xmax = xwidth/2;  xmin = -xmax;
+    ymax = yheight/2; ymin = -ymax;
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+            printf("TOF_monitor: %s: Null detection area !\n"
+                   "ERROR        (xwidth,yheight). Exiting",
+           NAME_CURRENT_COMP);
+      exit(0);
+    }
+
+    TOF_N = create_darr1d(nt);
+    TOF_p = create_darr1d(nt);
+    TOF_p2 = create_darr1d(nt);
+    
+    if (tmax!=0)
+    {
+      t_max=tmax;
+      t_min=tmin;
+      delta_t=(t_max-t_min)/nt;
+    }
+    else
+    {
+     delta_t=dt;
+     t_min=0;
+     t_max=nt*dt+tmin;
+    }
+
+    // Use instance name for monitor output if no input was given
+    if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+  %}
+TRACE
+  %{
+    int i;
+
+    PROP_Z0;
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    { 
+      i = floor((t-t_min)/delta_t);              /* Bin number */
+      if(i >= 0 && i < nt) {
+#pragma acc atomic
+	TOF_N[i] = TOF_N[i] + 1;
+#pragma acc atomic
+        TOF_p[i] = TOF_p[i] + p;
+#pragma acc atomic
+        TOF_p2[i] = TOF_p2[i] + p*p;
+        SCATTER;
+      }
+    }
+    if (restore_xray) {
+      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+  %}
+SAVE
+  %{
+    DETECTOR_OUT_1D(
+        "Time-of-flight monitor",
+        "Time-of-flight [s]",
+        "Intensity",
+        "t", t_min, t_max, nt,
+        &TOF_N[0],&TOF_p[0],&TOF_p2[0],
+        filename);
+  %}
+
+MCDISPLAY
+%{
+  
+  multiline(5, (double)xmin, (double)ymin, 0.0,
+               (double)xmax, (double)ymin, 0.0,
+               (double)xmax, (double)ymax, 0.0,
+               (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+%}
+
+END

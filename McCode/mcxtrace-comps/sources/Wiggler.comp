@@ -1,0 +1,285 @@
+/************************************************************************
+* McXtrace, X-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+*
+* Component: Wiggler
+*
+* %Identification
+* Written by: Erik B. Knudsen
+* Date: May, 2013.
+* Version: 1.0
+* Origin: DTU Physics
+*
+* Model of a wiggler source
+* 
+* %Description
+* A source model based on the derivation from B.D. Patterson, Am. J. Phys. 79, 1046 (2011); doi: 10.1119/1.3614033
+*
+* Example: Wiggler(
+*   E0 = 14, dE = 12, 
+*   Ee = 2.75, Ie = 0.5, B = 2.1, K=10, Nper=41, sigey=9.3e-6, sigex=215.7e-6)
+*
+* %Parameters
+* Input Parameters:
+* Ee:       [GeV] Storage ring electron energy (typically a few GeV)
+* Ie:       [A]   Ring current
+* B:        TT]   Peak magnet field strength
+* Nper:     [int] Number of magnetic periods in the wiggler
+* length:   [m]   Length of the Wiggler.
+* K:        [1]   Dimensionless undulator parameter, e.g. K >> 1. overrides B.
+* gap:      [m]   Wiggler gap.
+* sigex:    [m]   Electron ring beam size in horizontal plane (rms) 
+* sigey:    [m]   Electron ring beam size in vertical plane (rms)
+* phase:    [rad] Initial phase of radiation.
+* randomphase: [0/1] If !=0 phase will be random (I.e. the emitted radiation is completely incoherent)
+* focus_xw: [m]   Width of target window
+* focus_yh: [m]   Height of target window
+* dist:     [m]   Distance from source plane to target window along the optical axis
+* gauss_t:  [0/1] If 0 the target window will be sampled uniformly and the weight adjusted accordingly, otherwise we will use a gaussian sampling scheme.
+* E0:       [keV] Center of emitted energy spectrum (overrides lambda0)
+* dE:       [keV] Half-width of emitted energy spectrum
+* lambda0:  [AA]  Center of emitted wavelength spectrum
+* dlambda:  [AA]  Half-width of emitted wavelength spectrum
+* verbose:  [0/1] If nonzero, output extra information
+* %End
+***************************************************************************/
+
+DEFINE COMPONENT Wiggler
+
+SETTING PARAMETERS (E0=0, dE=0, lambda0=0,dlambda=0, phase=0, randomphase=1, Ee=2.4, Ie=0.4, B=1.6, K=3,
+    int Nper=1, length=1, sigey=0, sigex=0, focus_xw=0, focus_yh=0, dist=1, gauss_t=0, int verbose=0, Br=1.35)
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+
+SHARE
+%{
+#ifndef MCCODE_BESSELKNU
+#define MCCODE_BESSELKNU 1
+
+#pragma acc routine seq
+double besselKnu(double nu, double x){
+    const double h=0.5;
+    double KK=0,dK;
+    int r=0;
+    const int maxiter=1000;
+    KK=exp(-x)/2.0;
+    dK=1;
+    while (dK>DBL_EPSILON && r<maxiter){
+      r++;
+      dK=exp(-x*cosh(r*h))*cosh(nu*r*h);
+      KK+=dK;
+    }
+#ifndef OPENACC
+    if (r>=maxiter) {
+      fprintf(stderr,"Warning: Maximum number of iterations exceeded in besselKnu(%g,%g).\n",nu,x);
+    }
+#endif
+    KK*=h;
+    return KK;
+  }
+#endif /*MCCODE_BESSELKNU*/
+
+#ifndef M_SQRT1_2
+#define M_SQRT1_2 0.70710678118654752440
+#endif
+
+%}
+
+DECLARE
+%{
+  double gamma;
+  double gamma2;
+  double igamma;
+  double kc; /*characteristic wavenumber of radiation from bending magnet*/
+  double s1x;
+  double s1y; /*beam's size at dist (convolution of sigex/sigey and igamma)*/
+  double lu; /*wiggler magnetic period*/
+  double gap;
+  double p0;
+%}
+
+
+INITIALIZE
+%{
+  // fprintf(stderr,"Warning (%s): Wiggler is an experimental component - testing is ongoing\n",NAME_CURRENT_COMP);
+  
+  lu=length/Nper;
+
+  if( K<=0 || B<=0 || Ee<=0 || Ie<=0 || E0<=0 || length<=0 || Nper <=0){
+    fprintf(stderr, "Wiggler Error (%s): (K, B, Ee, Ie, E0, length, Nper) do not have a sane set of values. Found (%g %g %g %g %g). Aborting.\n",
+    NAME_CURRENT_COMP,K,B,Ee,Ie,E0);
+    exit(1);
+  }
+  
+  if(K){
+    B=2*M_PI*MELECTRON*M_C*K/CELE/lu;
+  }else if (B>0){
+    K=CELE*B*lu/(2*M_PI*MELECTRON*M_C);
+  }
+
+  if (sigex <0 || sigey<0){
+    fprintf(stderr, "Error (%s): sigex and sigey must be > 0. Negative beam size isn't meaningful. Aborting.\n",NAME_CURRENT_COMP);
+    exit(1);
+  }
+  if (dist<=0){
+    fprintf(stderr,"Error (%s): Target undefined.\n",NAME_CURRENT_COMP);
+    exit(1);
+  }
+
+  /*compute gamma*/
+  gamma=(Ee*1e9)/(MELECTRON/CELE*M_C*M_C);/*the extra CELE is to convert to eV*/
+  gamma2=gamma*gamma;
+  igamma=1.0/gamma;
+
+  //printf("Wiggler (%s): gamma=%g, divergence is 1/gamma=%g rad.\n",NAME_CURRENT_COMP,gamma,igamma);
+  /*compute characteristic energy in keV*/
+  double Ec=0.665*Ee*Ee*B;
+  //double Ec=1.5*gamma2*HBAR*CELE*B/MELE *1e-3; /*check units on this one. The 1e-3 factor is because energy is assumed to be in keV*/
+  /*We normally do computations in k so use that for transfer*/
+  kc=E2K*Ec;
+
+   /* compute gap estimate */
+  if (Br > B) {
+    double a=0.55*Br +2.835;
+    double b=-1.95*Br+7.22;
+    double c=-1.3*Br +2.97;
+    gap = -log(B/a)*lu/b;
+  } else gap = 3e-3;
+
+  if (verbose) 
+    printf("Wiggler (%s): K=%g B=%g[T] lambda_u=%g[m] E0=%g[keV]\n",
+      NAME_CURRENT_COMP, K,B,lu,E0);
+
+  p0 = 1.0/mcget_ncount();
+%}
+
+
+TRACE
+%{
+
+  double xx,yy,x1,y1,z1;
+  double k,e,l;
+  double F1=1.0;
+  double dx,dy,dz;
+  
+  // initial source area
+  xx=randnorm();
+  yy=randnorm();
+  x=xx*sigex;
+  y=yy*sigey;
+  z=(rand01()-0.5)*length;
+
+  // Gaussian distribution at origin
+  p=p0;/*initial weight is p0*/
+  if (E0){
+    if(!dE){
+      e=E0;
+    }else {
+      e=randpm1()*dE + E0;
+    }
+    k=E2K*e;
+  }else if (lambda0){
+    if (!dlambda){
+      l=lambda0;
+    }else{
+      l=randpm1()*dlambda + lambda0;
+    }
+    k=(2*M_PI/l);
+  }
+
+  // targeted area calculation
+  s1x=sqrt(sigex*sigex + K*igamma*K*igamma*(dist-z)*(dist-z));
+  s1y=sqrt(sigey*sigey + igamma*igamma*(dist-z)*(dist-z));
+  if (focus_xw){
+    if (!gauss_t){
+      /*sample uniformly but adjust weight*/
+      x1=randpm1()*focus_xw/2.0;
+      p*=exp(-(x1*x1)/(2.0*s1x*s1x));
+    }else {
+      do {
+        x1=randnorm()*s1x;
+      }while (fabs(x1)>focus_xw/2.0);
+      p*=erf(focus_xw*0.5*M_SQRT1_2/s1x);
+    }
+  }else{
+    x1=randnorm()*igamma*K;
+  }
+  if (focus_yh){
+    if (!gauss_t){
+      /*sample uniformly but adjust weight*/
+      y1=randpm1()*focus_yh/2.0;
+      p*=exp(-(y1*y1)/(2.0*s1y*s1y));
+    }else {
+      do {
+        y1=randnorm()*s1y;
+      }while (fabs(y1)>focus_yh/2.0);
+      p*=erf(focus_yh*0.5*M_SQRT1_2/s1y);
+    }
+  }else{
+    y1=randnorm()*igamma;
+  }
+  z1=dist;
+  dx=x1-x;
+  dy=y1-y;
+  dz=sqrt(dx*dx+dy*dy+(dist-z)*(dist-z));
+
+  kx=(k*dx)/dz;
+  ky=(k*dy)/dz;
+  kz=(k*(dist-z))/dz;
+  
+  /*spectral strength of radiation is given by Patterson*/  
+  double k_kc=k/kc;
+  double K2_3=besselKnu(0.666666666666666666666666667,k_kc*0.5);
+  p*=2*Nper*1.33e13*Ee*Ee*Ie* k_kc*k_kc*K2_3*K2_3;
+  //p*=2*Nper*ALPHA/(M_PI*M_PI)*gamma2*Ie/CELE* 1e-4 * 0.75 *k_kc*k_kc*K2_3*K2_3; 
+
+  /*randomly pick phase*/
+  if (randomphase){
+    phi=rand01()*2*M_PI;
+  }else{
+    phi=phase;
+  }
+
+  /*set polarization vector*/
+  Ex=0;Ey=0;Ez=0;
+%}
+
+MCDISPLAY
+%{
+  
+  double zz,dz;
+  const double xwidth=1e-2;
+  const double D=dist;
+  double x0,z0,x1,z1;
+  zz=-(length+lu)/2.0;
+  dz=lu/2.0;
+
+  while (zz<=(length-lu)/2.0){
+    box(0.0,gap/2.0+5e-4,zz,xwidth,1e-3,lu/2.0,0, 0, 1, 0);
+    box(0.0,-gap/2.0-5e-4,zz,xwidth,1e-3,lu/2.0,0, 0, 1, 0);
+    zz+=dz;
+  }
+
+  line(0.0,0.0,0.0, K*D*sin(igamma), 0.0, D);
+  line(0.0,0.0,0.0,-K*D*sin(igamma), 0.0, D);
+  line(0.0,0.0,0.0, 0.0, D*sin(igamma), D);
+  line(0.0,0.0,0.0, 0.0,-D*sin(igamma), D);
+  
+  double psi,dpsi;  
+  psi =-igamma;
+  dpsi= 2.0*igamma/32;
+  while(psi<igamma){
+    x0=D*sin(psi);
+    x1=D*sin(psi+dpsi);
+    z0=D*cos(psi);
+    z1=D*cos(psi+dpsi);
+    line(K*x0,0.0,z0,K*x1,0.0,z1);
+    line(0.0,x0,z0,0.0,x1,z1);
+    psi+=dpsi;
+  }
+%}
+
+END

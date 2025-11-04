@@ -1,0 +1,174 @@
+/*******************************************************************************
+* Instrument: SOLEIL_LUCIA
+*
+* %Identification
+* Written by: E. Farhi
+* Date: 2023
+* Origin: SOLEIL
+* Version: 0.1
+* %INSTRUMENT_SITE: SOLEIL
+*
+* A simple model for LUCIA at SOLEIL (fluorescence).
+*
+* %Description
+* The HU52 undulator, a DCM, a fluorescence sample, and monitors.
+* This model does not contain any focusing mirror.
+* The sample is a kind of biological cell.
+*
+* Position | Element
+* ---------|--------------------------------------------------------------------
+* 0        | HU52 undulator "Apple II" type, 32 periods, gap 15-150mm
+* 20       | Si(111) DCM, 40x40x10 mm^3 E0=5-16 keV
+* 29       | Sample location
+* 29.1     | Fluorescence Detector at 90 deg
+*
+* %Example: -n 1e7 E0=3.09 Detector: mon_spl_SDD_I=9.69081e+09
+*
+* %Parameters
+* E0: [keV] Nominal energy at the source, in 0.6-8 keV.
+* dE: [keV] Energy half-bandwidth at the source.
+* sample_material: [str] Absorption data file for the sample.
+* sample_geometry: [str] OFF/PLY file name for sample 3D geometry, or NULL for a box.
+* dcm_theta: [deg] Rotation angle of the DCM. 0=set from energy E0.
+*
+* %Link
+* https://www.synchrotron-soleil.fr/en/beamlines/lucia
+*
+* %End
+*******************************************************************************/
+DEFINE INSTRUMENT SOLEIL_LUCIA(E0=3.09, dE=0.02, dcm_theta=38.9, 
+  string sample_material="CaCO3AlP", string sample_geometry="plant_cell.ply")
+
+DECLARE
+%{
+  double dcm_gap;
+%}
+
+INITIALIZE
+%{
+  double DM= 5.4909;     // Si d-spacing
+  double d = DM/sqrt(3); // <111> reflection |<111>|=3
+  dcm_gap  = 0.02;       // gap between the 2 monochromator crystals
+   
+  if (!dcm_theta && E0) {
+    // n.lambda = 2 d sin(dcm_theta) = 2*PI/E2K / E0 with n=ORDER=1
+    double sin_theta = 2*PI/E2K/E0 / 2 / d;
+    if (fabs(sin_theta) < 1)
+      dcm_theta = asin(sin_theta)*RAD2DEG;
+  } else if (dcm_theta && !E0)
+    E0 = 2*PI/E2K / (2*d*sin(dcm_theta*DEG2RAD));
+  if (!dcm_theta || !E0 || dE <=0)
+    exit(fprintf(stderr, "%s: ERROR: Monochromator can not reflect E0=%g +/- %g [keV]. Aborting.\n", NAME_INSTRUMENT, E0, dE));
+  MPI_MASTER(
+    printf("%s: E0=%g [keV] Monochromator dcm_theta=%g [deg] \n", NAME_INSTRUMENT, E0, dcm_theta);
+  );
+  if (fabs(dE/E0)>0.1) dE = 3e-2*E0;
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+// the photon source -----------------------------------------------------------
+COMPONENT source = Undulator(
+  E0     = E0,
+  dE     = dE,
+  Ee     = 2.75,
+  dEe    = 0.001,
+  Ie     = 0.5,
+  B      = 0.42, // for a 15.5 mm gap
+  Nper   = 32,
+  lu     = 52.4e-3,
+  sigex  = 218.2e-6,
+  sigey  = 8.2e-6,
+  sigepx = 30e-6,
+  sigepy = 3.7e-6) 
+AT (0,0,0) RELATIVE origin
+
+COMPONENT mon_src_xy = Monitor_nD(
+  options="x y", xwidth=2e-3, yheight=2e-3, bins=128)
+AT (0,0,13.3) RELATIVE source
+
+COMPONENT mon_src_e = Monitor_nD(options="energy", xwidth=2e-3, yheight=2e-3, bins=128,
+  min=E0-dE*1.1, max=E0+dE*1.1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT slit = Slit(xwidth=0.5e-3, yheight=0.5e-3)
+AT (0,0,0.1) RELATIVE PREVIOUS
+
+COMPONENT slit_mon_xy = COPY(mon_src_xy)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// The double monochromator ----------------------------------------------------
+COMPONENT DCM_location = Arm()
+AT (0,0,20.5) RELATIVE source
+
+COMPONENT dcm_xtal0 = Bragg_crystal(
+    length=0.04, width=0.04, 
+    h=1, k=1, l=1, material="Si.txt", V=160.1826)
+AT(0,0,0)          RELATIVE PREVIOUS
+ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT dcm0      = Arm()
+AT(0,0,0)          RELATIVE PREVIOUS
+ROTATED (-dcm_theta,0,0) RELATIVE PREVIOUS
+
+COMPONENT dcm_xtal1 = COPY(dcm_xtal0)
+AT(0,dcm_gap, dcm_theta ? dcm_gap/tan(dcm_theta*DEG2RAD) : 0)    RELATIVE dcm_xtal0
+ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+
+COMPONENT dcm1      = Arm()
+AT(0,0,0)          RELATIVE PREVIOUS
+ROTATED (dcm_theta,0,0)  RELATIVE PREVIOUS 
+
+COMPONENT mon_dcm_e = COPY(mon_src_e)
+AT (0,0,0.5) RELATIVE PREVIOUS
+
+COMPONENT mon_dcm_xy = COPY(mon_src_xy)
+AT (0,0,0) RELATIVE PREVIOUS
+
+// The sample area -------------------------------------------------------------
+
+// a diaphragm before the sample
+COMPONENT diaphragm = Slit(
+  xwidth=100e-6, yheight=100e-6)
+AT (0,0,8) RELATIVE mon_dcm_e
+
+COMPONENT sample_stage = COPY(mon_src_xy)(
+  restore_xray=1, xwidth=100e-6, yheight=100e-6)
+AT (0,0,8.13) RELATIVE mon_dcm_e
+
+COMPONENT fluo_rotated = Arm()
+AT (0,0,0) RELATIVE PREVIOUS
+ROTATED (0,90,0) RELATIVE PREVIOUS
+
+COMPONENT sample = Fluorescence(
+  xwidth=100e-6, yheight=100e-6, zdepth=50e-6,
+  material=sample_material, geometry=sample_geometry,
+  p_interact=0.9)
+AT (0,0,0) RELATIVE sample_stage
+
+COMPONENT transmission = COPY(mon_src_xy)(
+  restore_xray=1, xwidth=100e-6, yheight=100e-6)
+AT (0,0,0.1) RELATIVE sample_stage
+
+COMPONENT mon_spl_SDD = Fluo_detector(
+  radius=0.1, nE=512,
+  Emin=0, Emax=E0+dE*1.5, restore_xray=1)
+AT (0,0,0) RELATIVE sample
+
+COMPONENT mon_spl_fluo = Monitor_nD(options="energy", 
+  xwidth=0.1, yheight=0.1, bins=1000,
+  min=0, max=E0+dE*1.1, restore_xray=1)
+AT (0,0,0.1) RELATIVE fluo_rotated
+
+
+
+END

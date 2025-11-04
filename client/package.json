@@ -1,0 +1,43 @@
+{
+  "name": "vs-for-mcstas",
+  "displayName": "VS_for_McStas",
+  "description": "VS_for_McStas is an extension that aims to deliver McStas syntax highlighting, as well as GUI component insertion.",
+  "version": "1.2.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lomholy/VS_for_McStas"
+  },
+  "publisher": "lomholy",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": ["onLanguage"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {}
+  }, 
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.17.46",
+    "@types/vscode": "^1.99.0",
+    "@typescript-eslint/eslint-plugin": "^8.28.0",
+    "@typescript-eslint/parser": "^8.28.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.23.0",
+    "typescript": "^5.8.3"  },
+    "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

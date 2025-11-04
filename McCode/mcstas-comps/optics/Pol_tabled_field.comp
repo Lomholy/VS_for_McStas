@@ -1,0 +1,249 @@
+/**************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2006, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Pol_Bfield
+*
+* %I
+* Written by: Erik B Knudsen, Peter Christiansen and Peter Willendrup
+* Date: July 2011
+* Origin: RISOE
+*
+* Magnetic field component.
+*
+* %D
+*
+* Region with a tabled magnetic field read from file.
+* The magnetic field is read from a text file where it is
+*      specified as a point cloud with N rows of 6 columns:
+*      x y z Bx By Bz
+*    the B field map is resampled with Stepx*Stepy*Stepz points.
+*    Use Stepx=Stepy=Stepz=0 to skip resampling and use the table as is.
+* The regions itself may be either a 3D rectangular block, a cylinder with axis along y,
+* or spherical. Interpolation is done between data-points.
+* 
+* %P
+* INPUT PARAMETERS:
+*
+* xwidth: [m]               Width of opening.
+* yheight: [m]              Height of opening.
+* zdepth: [m]               Length of field.
+* radius: [m]               Radius of field if it is cylindrical or spherical.
+* filename: [str]           File where the magnetic field is tabulated.
+* geometry: [str]           Name of an Object File Format (OFF) or PLY file for complex field-geometry.
+* interpol_method: [str]    Choice of interpolation method "kdtree" (default on CPU) / "regular" (default on GPU)
+*
+* CALCULATED PARAMETERS:
+* %E
+****************************************************************************/
+DEFINE COMPONENT Pol_tabled_field
+
+SETTING PARAMETERS (xwidth=0, yheight=0,zdepth=0, radius=0, string filename="bfield.dat", string geometry=NULL, string interpol_method="default")
+DEPENDENCY " -DUSE_OFF " 
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+SHARE
+%{
+  %include "read_table-lib"
+  %include "interpolation-lib"
+
+  // Polarisation-defines ala pol-lib
+  #define tabled_pol_omegaL (-2 * PI * 29.16e6) /* MHz*rad/Tesla */
+  #define tabled_pol_mu0 (4*M_PI*1e-7)
+  #define tabled_pol_angular_accuracy (1.0*DEG2RAD)
+  #define tabled_pol_initial_timestep 1e-5;
+
+  
+#pragma acc routine seq
+  int table_magnetic_field(double x, double y, double z, double t, double *bx, double *by, double *bz,
+      struct interpolator_struct *interpolator)
+  {
+    if (!interpolator) return 1;
+    if( (interpolator_interpolate3_3(interpolator, x,y,z, bx,by,bz)) != NULL ){
+      return 0;
+    }else{
+      return 1;
+    }
+  }
+
+  double fmax(double, double);
+  double fmin(double, double);
+
+  /*most of this function is borrowed from SimpleNumMagnetPrecession in pol-lib.c*/
+#pragma acc routine seq
+  int prop_precess(_class_particle *_particle, struct interpolator_struct *interpolator, double dt){
+
+    double Bx, By, Bz, tabled_pol_phiz;
+    double BxStart, ByStart, BzStart, Bstart;
+    double BxTemp, ByTemp, BzTemp, Btemp;
+    double Bstep, tabled_pol_timeStep, tabled_pol_sp;
+    const double tabled_pol_spThreshold  = cos(tabled_pol_angular_accuracy);
+    _class_particle *pp = _particle;
+    table_magnetic_field(pp->x, pp->y, pp->z, pp->t,&BxTemp, &ByTemp, &BzTemp,interpolator);
+
+    do {
+
+      Bx = 0; By = 0; Bz = 0; tabled_pol_phiz = 0;
+      BxStart = BxTemp; ByStart = ByTemp; BzStart = BzTemp;
+      Bstart = sqrt(BxStart*BxStart + ByStart*ByStart + BzStart*BzStart);
+
+      tabled_pol_timeStep = tabled_pol_initial_timestep;
+
+      /*check if we need to take multiple steps of maximum size tabled_pol_timeStep*/
+      if(dt<tabled_pol_timeStep){
+        tabled_pol_timeStep = dt;
+      }
+      double xp,yp,zp; 
+      do {
+        xp = pp->x+ pp->vx*tabled_pol_timeStep;
+        yp = pp->y+ pp->vy*tabled_pol_timeStep;
+        zp = pp->z+ pp->vz*tabled_pol_timeStep;
+
+        table_magnetic_field(xp, yp, zp,pp->t+tabled_pol_timeStep, &BxTemp, &ByTemp, &BzTemp,interpolator);
+        /* not so elegant, but this is how we make sure that the steps decrease
+           when the WHILE condition is not met*/
+        tabled_pol_timeStep *= 0.5;
+
+        Btemp = sqrt(BxTemp*BxTemp + ByTemp*ByTemp + BzTemp*BzTemp);
+
+        tabled_pol_sp = scalar_prod(BxStart, ByStart, BzStart, BxTemp, ByTemp, BzTemp);
+        tabled_pol_sp /= Bstart*Btemp;
+
+      } while (tabled_pol_sp<tabled_pol_spThreshold && tabled_pol_timeStep>FLT_EPSILON);
+
+      tabled_pol_timeStep*=2;
+
+      // update coordinate values
+      pp->x = xp;
+      pp->y = yp;
+      pp->z = zp;
+      pp->t += tabled_pol_timeStep;
+      dt -= tabled_pol_timeStep;
+
+      /*precess around mean magnetic field*/
+      Bx = 0.5 * (BxStart + BxTemp);
+      By = 0.5 * (ByStart + ByTemp);
+      Bz = 0.5 * (BzStart + BzTemp);
+      tabled_pol_phiz = fmod(sqrt(Bx*Bx+ By*By+ Bz*Bz) * tabled_pol_timeStep*tabled_pol_omegaL, 2*PI);
+
+      /* Do the neutron spin precession for the small timestep*/
+      if(!(Bx==0 && By==0 && Bz==0)) {
+
+        double sx_in = pp->sx;
+        double sy_in = pp->sy;
+        double sz_in = pp->sz;
+
+        rotate(pp->sx, pp->sy, pp->sz, sx_in,sy_in,sz_in, tabled_pol_phiz, Bx, By, Bz);
+      }
+
+    } while (dt>0);
+
+  }
+
+%}
+
+
+DECLARE
+%{
+  int shape;
+  struct interpolator_struct *interpolator;
+%}
+
+INITIALIZE
+%{
+  enum shapes {NONE=0, BOX, WINDOW, CYLINDER, SPHERE, ANY};
+  /* these default field functions are part of pol-lib */
+  /*initialize the interpolation vertex structure*/
+
+
+  #ifdef OPENACC
+  // If "aotomatic mode is given on GPU, switch
+  // to 'default'
+  if (!strcmp(interpol_method,"NULL")) {
+    sprintf(interpol_method,"default");
+  }
+  #endif
+
+  // Handle default mode in both CPU and GPU case
+  if (!strcmp(interpol_method,"default")) {
+    #ifdef OPENACC
+    // Default is to assume regular interpolation on GPU
+    sprintf(interpol_method,"regular");
+    #else
+    // On CPU we use "NULL" allowing to jump automatically
+    // between regular and kdtree interpolation
+    sprintf(interpol_method,"NULL");
+    #endif
+  }
+
+  interpolator = interpolator_load(filename, 3, 3, interpol_method);
+  interpolator_info(interpolator);
+
+  /*initialize shape to either be window/box/cylinder*/
+  /*some logic here to enter through a box or cylinder*/
+  #ifdef USE_OFF
+  if(geometry && strlen(geometry)){
+      shape=ANY;
+  }else 
+  #endif
+  if(xwidth && yheight && zdepth){
+      shape=BOX;
+  }else if(radius && yheight){
+      shape=CYLINDER;
+  }else if (radius) {
+      shape=SPHERE;
+  }
+
+%}
+
+TRACE
+%{
+    double t0,t1;
+    int hit;
+    enum {NONE=0, BOX, WINDOW, CYLINDER, SPHERE, ANY} shapes;
+
+    /*enter through whatever object we are*/
+    switch (shape){
+        case BOX:
+            hit=box_intersect(&t0,&t1,x,y,z,vx,vy,vz,xwidth,yheight,zdepth);
+            /*terminate neutrons which miss the component*/
+            if(!hit) ABSORB;
+            /*If we do hit - propagate to the start of the field unless the nuetron is already there.*/
+            if(t0>FLT_EPSILON) {
+                PROP_DT(t0);
+                t1-=t0;
+            }
+            break;
+        case CYLINDER:
+            hit=cylinder_intersect(&t0,&t1,x,y,z,vx,vy,vz,radius,yheight);
+            /*terminate neutrons which miss the component*/
+            if(!hit)ABSORB;
+            /*If we do hit - propagate to the start of the field unless the nuetron is already there.*/
+            if(t0>FLT_EPSILON) {
+                PROP_DT(t0);
+                t1-=t0;
+            }
+            break;
+        case SPHERE:
+            hit=sphere_intersect(&t0,&t1,x,y,z,vx,vy,vz,radius);
+            if(!hit) ABSORB;
+            if(t0>FLT_EPSILON) {
+                PROP_DT(t0);
+                t1-=t0;
+            }
+            break;
+    }
+    /*Do propagation including spin precession*/
+    prop_precess(_particle,interpolator,t1);
+%}
+
+MCDISPLAY
+%{
+  
+  rectangle("xy",0,0,0,xwidth,yheight);
+%}
+
+END

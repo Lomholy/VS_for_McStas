@@ -1,0 +1,187 @@
+/************************************************************************
+* 
+* McXtrace, X-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+*
+* Component: Source_pt
+*
+* %Identification
+* Written by: Erik Knudsen
+* Date: June 29th, 2009
+* Origin: Risoe
+* Release: McXtrace 0.1
+*
+* An x-ray point source
+* 
+* %Description
+* A simple source model emitting photons from a point source uniformly into 4pi. A square target centered
+* on the Z-axis restricts the beam to that aperture.
+* If an input spectrum datafile (spectrum_file) is not specified, the beam is restricted to emit photons between E0+-dE keV, or lambda0+-dlambda AA, whichever is given.
+* The input spectrum file should be formatted such that x-ray energy/wavelength is in the first column and the intensity in the second. Any preceding
+* lines starting with # are considered part of the file header. If a datafile is given, a nonzero E¤0 value indicates that is is parametrized by energy ( in keV)
+* as opposed to wavelength (in AA). Wavelength is the default.
+* Flux is given in the unit photons/s
+* 
+* Example: Source_pt(dist=1,focus_xw=0.1,focus_yh=0.1, lamda=0.231, dlambda=0.002)
+*
+* %Parameters
+* focus_xw: [m]     Width of target
+* focus_yh: [m]     Height of target
+* focus_x0: [m]     x-cocordinate of target centre.
+* focus_y0: [m]     y-coordinate of target centre.
+* lambda0:  [AA]    Mean wavelength of x-rays.
+* dlambda:  [AA]    Wavelength half spread of x-rays (flat or gaussian sigma).
+* E0:       [keV]   Mean energy of xrays.
+* dE:       [keV]   Energy half spread of x-rays.
+* gauss:    [1]     Gaussian (1) or Flat (0) energy/wavelength distribution
+* dist:     [m]     Distance from source plane to sampling window.
+* flux:     [ph/s] Total flux radiated from the source. 
+* randomphase: [0/1] If nonzero, the phase of the emotted photon is random, i.e. source is fully incoherent. otherwise the value of phase is used.
+* phase:    [rad]   Set phase to something given. 
+* spectrum_file: [string]  File from which to read an input spectrum.
+* verbose:  [1]     Output more information runtime.
+*
+* %End
+******************************************************************/
+
+DEFINE COMPONENT Source_pt
+
+SETTING PARAMETERS (focus_xw=0,focus_yh=0,focus_x0=0,focus_y0=0,flux=0,dist=1,
+	E0=0, dE=0, lambda0=0,dlambda=0,phase=0,randomphase=1,gauss=0, string spectrum_file="",
+	int verbose=0)
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+
+SHARE
+%{
+  %include "read_table-lib"
+%}
+
+DECLARE
+%{
+  double pmul;
+  t_Table spectrum_T;
+%}
+
+INITIALIZE
+%{
+  /*input logic*/
+  if(dist<=0 || focus_yh<=0 || focus_xw<=0){
+    fprintf(stderr,"Source_pt (%s): Error: Target area unmeaningful! (negative dist / focus_xw / focus_yh)\n",NAME_CURRENT_COMP);
+    exit(-1);
+  }
+
+  if (spectrum_file && strlen(spectrum_file)>0 && strcmp(spectrum_file,"NULL")!=0 ){
+    /*read spectrum from file*/
+    int status=0;
+    if ( (status=Table_Read(&(spectrum_T),spectrum_file,0))==-1){
+      fprintf(stderr,"ERROR (%s): Could not parse file \"%s\"\n",NAME_CURRENT_COMP,spectrum_file?spectrum_file:"");
+      exit(-1);
+    }
+    /*data is now in table spectrum_T*/
+    /*integrate to get total flux, assuming numbers have been corrected for measuring aperture*/
+    int i;
+    double pint=0;
+    t_Table *T=&(spectrum_T);
+    for (i=0;i<spectrum_T.rows-1;i++){
+      pint+=((T->data[i*T->columns+1]+T->data[(i+1)*T->columns+1])/2.0)*(T->data[(i+1)*T->columns]-T->data[i*T->columns]); 
+    }
+    if (verbose){
+      printf("INFO (%s): Integrated intensity radiated is %g pht/s\n",NAME_CURRENT_COMP,pint);
+      if(E0) printf("INFO (%s):, E0!=0 -> assuming intensity spectrum is parametrized by energy [keV]\n",NAME_CURRENT_COMP);
+    }
+  }else if (!E0 && !lambda0){
+    fprintf(stderr,"ERROR (%s): Error: Must specify either wavelength or energy distribution\n",NAME_CURRENT_COMP);
+    exit(-1);
+  }
+
+  /*calculate the X-ray weight from the flux*/
+  if (flux){
+    pmul=flux;
+  }else{
+    pmul=1;
+  }
+  pmul*=1.0/((double)mcget_ncount());
+%}
+
+TRACE
+%{
+  double k,l,e;
+  double fi_x,fi_y,t_ome;
+  /*point source*/
+  p=pmul;
+  x=0;y=0;z=0;
+ 
+  fi_x=atan(focus_xw/2.0/dist)*2.0;
+  fi_y=atan(focus_yh/2.0/dist)*2.0;
+
+  randvec_target_rect_angular(&kx,&ky,&kz, &t_ome, focus_x0, focus_y0, dist, fi_x,fi_y,ROT_A_CURRENT_COMP);
+  NORM(kx,ky,kz);
+  p*=t_ome/(4*M_PI);
+
+  /*sample wavelength*/
+  if (spectrum_file && strlen(spectrum_file)>0 && strcmp(spectrum_file,"NULL")!=0){
+    double pp=0;
+    //while (pp<=0){ 
+    l=spectrum_T.data[0]+ (spectrum_T.data[(spectrum_T.rows-1)*spectrum_T.columns] -spectrum_T.data[0])*rand01();
+    pp=Table_Value(spectrum_T,l,1);
+    //}
+    p*=pp;
+    /*if E0!=0 the tabled value is assumed to be energy in keV*/
+    if (E0!=0){
+      k=E2K*l;
+    }else{
+      k=(2*M_PI/l);
+    }
+  }else if (E0){
+    if(!dE){
+      e=E0;
+    }else if (gauss){
+      e=E0+dE*randnorm();
+    }else{
+      e=randpm1()*dE + E0;
+    }
+    k=E2K*e;
+  }else if (lambda0){
+    if (!dlambda){
+      l=lambda0;
+    }else if (gauss){
+      l=lambda0+dlambda*randnorm();
+    }else{
+      l=randpm1()*dlambda*0.5 + lambda0;
+    }
+    k=(2*M_PI/l);
+  }
+  kx*=k;
+  ky*=k;
+  kz*=k;
+  
+  /*randomly pick phase or set to something real*/
+  if (randomphase){
+    phi=rand01()*2*M_PI;
+  }else{
+    phi=phase;
+  }
+
+  /*set polarization vector*/
+  Ex=0;Ey=0;Ez=0;
+%}
+
+FINALLY
+%{
+  Table_Free(&(spectrum_T));
+%}
+
+MCDISPLAY
+%{
+  double radius=0.05;
+  
+  circle("xy",0,0,0,radius);
+  circle("xz",0,0,0,radius);
+  circle("yz",0,0,0,radius);
+%}
+
+END

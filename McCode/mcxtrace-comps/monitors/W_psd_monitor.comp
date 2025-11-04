@@ -1,0 +1,128 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: W_PSD_monitor
+*
+* %Identification
+* Written by: Erik Knudsen
+* Date: June 22, 2009
+* Origin: Risoe
+* Release: McXtrace 0.1
+*
+* Position-sensitive wattage monitor.
+*
+* %Description
+* Based on neutron PSD component written by Kim Lefmann
+* An n times m pixel PSD wattage monitor. This component may also be used as a beam
+* detector.
+*
+* Example: W_psd_monitor(xwidth=0.1, yheight=0.1,
+*           nx=90, ny=90, filename="Output.psd")
+*
+* %Parameters
+* INPUT PARAMETERS:
+*
+* xwidth:   [m] Width of detector.
+* yheight:  [m] Height of detector.
+* nx:       [1] Number of pixel columns
+* ny:       [1] Number of pixel rows
+* filename: [str] Name of file in which to store the detector image
+* restore_xray: [1] If set, the monitor does not influence the xray state
+*
+* CALCULATED PARAMETERS:
+*
+* PSD_N:    Array of xray counts
+* PSD_W:    Array of xray weight counts
+* PSD_W2:   Array of second moments
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT W_psd_monitor
+SETTING PARAMETERS (int nx=90, int ny=90, string filename=0, int restore_xray=0, xwidth=0.1, yheight=0.1)
+
+DECLARE
+  %{
+  DArray2d PSD_N;
+  DArray2d PSD_W;
+  DArray2d PSD_W2;
+  double xmin;
+  double xmax;
+  double ymin;
+  double ymax;
+  %}
+
+INITIALIZE
+  %{
+    int i,j;
+
+    xmax = xwidth/2;  xmin = -xmax;
+    ymax = yheight/2; ymin = -ymax;
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+            printf("PSD_monitor: %s: Null detection area !\n"
+                   "ERROR        (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+           NAME_CURRENT_COMP);
+      exit(0);
+    }
+    
+    PSD_N = create_darr2d(nx, ny);
+    PSD_W = create_darr2d(nx, ny);
+    PSD_W2 = create_darr2d(nx, ny);
+
+    // Use instance name for monitor output if no input was given
+    if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+  %}
+
+TRACE
+  %{
+    int i,j;
+    double W1,W2;
+
+    PROP_Z0;
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    {
+      i = floor((x - xmin)*nx/(xmax - xmin));
+      j = floor((y - ymin)*ny/(ymax - ymin));
+      double k=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz));
+#pragma acc atomic
+      PSD_N[i][j] += 1;
+      W1=p*k*K2E*1.6022e-16;
+#pragma acc atomic
+      PSD_W[i][j] += W1;
+      W2=(p*k*K2E*1.6022e-16)*(p*k*K2E*1.6022e-16);
+#pragma acc atomic
+      PSD_W2[i][j] += W2;
+      SCATTER;
+    }
+    if (restore_xray) {
+      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+  %}
+SAVE
+  %{
+    DETECTOR_OUT_2D(
+        "W_psd_monitor",
+        "X position [m]",
+        "Y position [m]",
+        xmin, xmax, ymin, ymax,
+        nx, ny,
+        &PSD_N[0][0],&PSD_W[0][0],&PSD_W2[0][0],
+        filename);
+  %}
+
+MCDISPLAY
+%{
+  
+  multiline(5, (double)xmin, (double)ymin, 0.0,
+               (double)xmax, (double)ymin, 0.0,
+               (double)xmax, (double)ymax, 0.0,
+               (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+%}
+
+END

@@ -1,0 +1,200 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: EPSD_monitor
+*
+* %Identification
+* Written by: Erik B Knudsen
+* Date: June 22, 2009
+* Release: McXtrace 1.5
+* Origin: DTU
+*
+* Position-energy-sensitive monitor.
+*
+* %Description
+* An nx times ny pixel energy resolved PSD monitor, which only counts photons with energy in an interval
+* given by Emin and Emax in nE energy bins. The default energy interval is (almost) infinite, with a single bin.
+* If nE>1 the component will output nE detector files + one which is integrated over the full energy interval.
+*
+* Example: EPSD_monitor(xwidth=0.1, yheight=0.1,
+*           nx=90, ny=90, filename="Output.psd")
+*
+* %Parameters
+* INPUT PARAMETERS:
+*
+* Emin: [keV]       Lower bound of energy interval.
+* Emax: [keV]       Upper bound of energy interval.
+* xwidth: [m]       Width of detector. 
+* yheight: [m]      Height of detector. 
+* nx: [1]           Number of pixel columns.
+* ny: [1]           Number of pixel rows.
+* nE: [1]           Number of energy bins.
+* filename: [str]   Name of file in which to store the detector image.
+* restore_xray: [1] If set, the monitor does not influence the xray state.
+* nowritefile: [1]  If set, monitor will skip writing to disk
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT EPSD_monitor
+
+SETTING PARAMETERS (int nx=90, int ny=90, string filename=0, int restore_xray=0,
+    xwidth=0.1, yheight=0.1, Emax=0, Emin=0, nE=1, int nowritefile=0)
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */ 
+
+DECLARE
+%{
+    DArray2d PSD_N;
+    DArray2d PSD_p;
+    DArray2d PSD_p2;
+    DArray2d PSD_N_s;
+    DArray2d PSD_p_s;
+    DArray2d PSD_p2_s;
+    double xmin;
+    double xmax;
+    double ymin;
+    double ymax;
+%}
+
+INITIALIZE
+%{
+    int i,j;
+
+    xmax = xwidth/2;  xmin = -xmax;
+    ymax = yheight/2; ymin = -ymax;
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+      fprintf(stderr,"ERROR (%s): Null detection area! Aborting.\n",NAME_CURRENT_COMP);
+      exit(-1);
+    }
+    if (Emax<=Emin){
+      fprintf(stderr,"ERROR (%s): Unmeaningful energy interval E:[%g,%g]\n Aborting",NAME_CURRENT_COMP,Emin,Emax);
+      exit(-1);
+    }
+    if (Emax==0){
+      Emax=FLT_MAX;
+    }
+
+    if (nE>1){
+        PSD_N = create_darr2d(nE,nx*ny);
+        PSD_p = create_darr2d(nE,nx*ny);
+        PSD_p2 = create_darr2d(nE,nx*ny);
+    }
+    PSD_N_s = create_darr2d(nx,ny);
+    PSD_p_s = create_darr2d(nx,ny);
+    PSD_p2_s = create_darr2d(nx,ny);
+
+    // Use instance name for monitor output if no input was given
+    if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+    int i,j,k;
+    double e,p2;
+
+    PROP_Z0;
+    e=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz))*K2E;
+    if (x>xmin && x<xmax && y>ymin && y<ymax && e<Emax && e>Emin )
+    {
+      i = floor((x - xmin)*nx/(xmax - xmin));
+      j = floor((y - ymin)*ny/(ymax - ymin));
+      k = floor((e-Emin)*nE/(Emax-Emin));
+
+      p2=p*p;
+      if (nE>1){
+#pragma acc atomic
+        PSD_N[k][i*ny+j] += 1;
+#pragma acc atomic
+        PSD_p[k][i*ny+j] += p;
+#pragma acc atomic
+        PSD_p2[k][i*ny+j] += p2;
+      }
+#pragma acc atomic
+      PSD_N_s[i][j] += 1;
+#pragma acc atomic
+      PSD_p_s[i][j] += p;
+#pragma acc atomic
+      PSD_p2_s[i][j] += p2;
+      SCATTER;
+    }
+    if (restore_xray) {
+      RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+%}
+
+SAVE
+%{
+    if(!nowritefile){
+      if (nE<=1){
+          DETECTOR_OUT_2D(
+                  "PSD monitor",
+                  "X position [m]",
+                  "Y position [m]",
+                  xmin, xmax, ymin, ymax,
+                  nx, ny,
+                  &PSD_N_s[0][0],&PSD_p_s[0][0],&PSD_p2_s[0][0],
+                  filename);
+      }else{
+          int kk;
+          char ff[256];
+          char tt[256];
+
+          /*figure out padding to make the files appear in alphanuerical order*/
+          char  format[32];
+          snprintf(format,32,"%%s_%%0%ui",(int) floor(log(nE)/log(10.0))+1);
+          sprintf(ff, "%s_Sum",filename);
+
+          DETECTOR_OUT_2D(
+                  "PSD monitor Energy Sum",
+                  "X position [m]",
+                  "Y position [m]",
+                  xmin, xmax, ymin, ymax,
+                  nx, ny,
+                  &PSD_N_s[0][0],&PSD_p_s[0][0],&PSD_p2_s[0][0],
+                  ff);
+  
+          for (kk=0; kk<nE; kk++) {
+              sprintf(ff, format,filename,kk);
+              sprintf(tt, "PSD monitor Energy slice %i ~ %g keV",kk,Emin+kk*(Emax-Emin)/nE);
+              DETECTOR_OUT_2D(
+                      tt,
+                      "X position [m]",
+                      "Y position [m]",
+                      xmin, xmax, ymin, ymax, nx, ny,
+                      &PSD_N[kk][0],&PSD_p[kk][0],&PSD_p2[kk][0],
+                      ff);
+          }
+      }
+    }
+%}
+
+FINALLY
+%{
+  if(nE>1){
+    destroy_darr2d(PSD_N);
+    destroy_darr2d(PSD_p);
+    destroy_darr2d(PSD_p2);
+  }
+
+  destroy_darr2d(PSD_N_s);
+  destroy_darr2d(PSD_p_s);
+  destroy_darr2d(PSD_p2_s);
+%}
+
+MCDISPLAY
+%{
+  
+  multiline(5, (double)xmin, (double)ymin, 0.0,
+               (double)xmax, (double)ymin, 0.0,
+               (double)xmax, (double)ymax, 0.0,
+               (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+%}
+
+END

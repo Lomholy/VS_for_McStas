@@ -1,0 +1,58 @@
+/*******************************************************************************
+*         McStas instrument definition URL=http://www.mcstas.org
+*
+* Instrument: mini
+*
+* %Identification
+* Written by: Jakob Garde
+* Date: 2017
+* Origin: DTU
+* %INSTRUMENT_SITE: Templates
+*
+* Minimalistic instrument for testing GPU implementation
+*
+* %Description
+* Minimalistic instrument for testing GPU implementation
+*
+* %Example: mini.instr dummy=0 Detector: detector_I=345.995
+*
+* %Parameters
+* dummy: [ ] Dummy input parameter
+*
+* %Link
+* A reference/HTML link for more information
+*
+* %End
+********************************************************************************/
+DEFINE INSTRUMENT mini(dummy=0)
+
+TRACE
+
+COMPONENT arm = Arm()
+AT (0, 0, 0) ABSOLUTE
+
+COMPONENT source = Source_simple(
+    radius = 0.02,
+    dist = 3,
+    focus_xw = 0.01,
+    focus_yh = 0.01,
+    lambda0 = 6.0,
+    dlambda = 0.05,
+    flux = 1e8)
+AT (0, 0, 0) RELATIVE arm
+
+COMPONENT coll2 = Slit(
+    radius = 0.01)
+AT (0, 0, 6) RELATIVE arm
+
+COMPONENT detector = PSD_monitor(
+    nx = 128,
+    ny = 128,
+    filename = "PSD.dat",
+    xmin = -0.1,
+    xmax = 0.1,
+    ymin = -0.1,
+    ymax = 0.1)
+AT (0, 0, 9.01) RELATIVE arm
+
+END

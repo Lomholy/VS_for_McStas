@@ -1,0 +1,152 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: DivPos_monitor
+*
+* %Identification
+* Written by: Erik B Knudsen
+* Based on neutron component by Kim Lefmann
+* Date: Jun. 16
+* Origin: DTU Physics
+* Release: McXtrace 1.3
+*
+* Divergence/position monitor (acceptance diagram).
+*
+* %Description
+* 2D detector for intensity as a function of both horizontal position
+* and wavelength. This gives information similar to an aceptance diagram used
+* eg. to investigate beam profiles in neutron guides.
+*
+* Example: DivPos_monitor(nh=20, ndiv=20, filename="Output.dip",
+*           xwidth=0.1, yheight=0.1, maxdiv_h=2)
+*
+* %Parameters
+* INPUT PARAMETERS:
+*
+* xwidth:  [m] Width of detector.
+* yheight: [m] Height of detector.
+* nh:      [1] Number of bins in position
+* ndiv:    [1] Number of bins in divergence
+* nx:      [1] Vector definition of "forward" direction wrt. divergence, to be used e.g. when the monitor is rotated into the horizontal plane
+* ny:      [1] Vector definition of "forward" direction wrt. divergence, to be used e.g. when the monitor is rotated into the horizontal plane
+* nz:      [1] Vector definition of "forward" direction wrt. divergence, to be used e.g. when the monitor is rotated into the horizontal plane
+* maxdiv_h: [deg] Maximal horizontal divergence detected
+* filename: [str] Name of file in which to store the detector image
+* restore_xray: [1] If set, the monitor does not influence the photon state
+* nowritefile: [1]  If set, monitor will skip writing to disk.
+*
+* CALCULATED PARAMETERS:
+*
+* Div_N:    Array of photon ray counts
+* Div_p:    Array of photon weight counts
+* Div_p2:   Array of second moments
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT DivPos_monitor
+SETTING PARAMETERS (int nh=20 , int ndiv=20, string filename=0, 
+  xwidth=0.1, yheight=0.1, maxdiv_h=2, restore_xray=0, nx=0, ny=0, nz=1, int nowritefile=0)
+
+DECLARE
+%{
+  DArray2d Div_N;
+  DArray2d Div_p;
+  DArray2d Div_p2;
+  double xmin;
+  double xmax;
+  double ymin;
+  double ymax;
+%}
+
+INITIALIZE
+%{
+    int i,j;
+
+    xmax = xwidth/2;  xmin = -xmax;
+    ymax = yheight/2; ymin = -ymax;
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+            printf("DivPos_monitor: %s: Null detection area !\n"
+                   "ERROR           (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+           NAME_CURRENT_COMP);
+      exit(0);
+    }
+
+    for (i=0; i<nh; i++)
+     for (j=0; j<ndiv; j++)
+     {
+      Div_N[i][j] = 0;
+      Div_p[i][j] = 0;
+      Div_p2[i][j] = 0;
+     }
+    NORM(nx,ny,nz);
+
+    // Use instance name for monitor output if no input was given
+    if (!strcmp(filename,"\0")) sprintf(filename,"%s",NAME_CURRENT_COMP);
+%}
+
+TRACE
+%{
+    int i,j;
+    double div;
+    double k, kn;
+
+    PROP_Z0;
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    {
+      /* Find length of projection onto the [nx ny nz] axis */
+      kn = scalar_prod(kx, ky, kz, nx, ny, nz);
+      div = RAD2DEG*atan2(kx,kn);
+
+      if (div < maxdiv_h && div > -maxdiv_h)
+      {
+        i = floor((x - xmin)*nh/(xmax - xmin));
+        j = floor((div + maxdiv_h)*ndiv/(2.0*maxdiv_h));
+        Div_N[i][j]++;
+        Div_p[i][j] += p;
+        Div_p2[i][j] += p*p;
+        SCATTER;
+      }
+    }
+    if (restore_xray) {
+        RESTORE_XRAY(INDEX_CURRENT_COMP, x, y, z, kx, ky, kz, phi, t, Ex, Ey, Ez, p);
+    }
+%}
+
+SAVE
+%{
+  if(!nowritefile){
+    DETECTOR_OUT_2D(
+        "Position-divergence monitor",
+        "pos [m]",
+        "divergence [deg]",
+        xmin, xmax, -maxdiv_h, maxdiv_h,
+        nh, ndiv,
+        &Div_N[0][0],&Div_p[0][0],&Div_p2[0][0],
+        filename);
+  }
+%}
+
+FINALLY
+%{
+  destroy_darr2d(Div_N);
+  destroy_darr2d(Div_p);
+  destroy_darr2d(Div_p2);
+%}
+
+MCDISPLAY
+%{
+    
+    multiline(5, (double)xmin, (double)ymin, 0.0,
+                 (double)xmax, (double)ymin, 0.0,
+                 (double)xmax, (double)ymax, 0.0,
+                 (double)xmin, (double)ymax, 0.0,
+                 (double)xmin, (double)ymin, 0.0);
+%}
+
+END

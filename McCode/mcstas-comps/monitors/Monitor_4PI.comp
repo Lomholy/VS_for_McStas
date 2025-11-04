@@ -1,0 +1,84 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Monitor_4PI
+*
+* %I
+* Written by: Kim Lefmann and Kristian Nielsen
+* Date: April 17, 1998
+* Version: $Revision$
+* Origin: Risoe
+* Release: McStas 1.6
+*
+* Monitor that detects ALL non-absorbed neutrons.
+*
+* Example: Monitor_4PI()
+*
+* %D
+* Counts ALL neutrons that propagate this far in the instrument, regardless
+* of origin or direction. Mostly used for test purposes.
+*
+* %P
+* INPUT PARAMETERS:
+*
+* (none)
+*
+* CALCULATED PARAMETERS:
+*
+* Nsum   : Number of neutrons hitting
+* psum   : Total weight of neutrons hitting
+* p2sum  : Second moment of neutron weights
+*
+* %E
+*******************************************************************************/
+
+
+DEFINE COMPONENT Monitor_4PI
+
+SETTING PARAMETERS ()
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */ 
+
+DECLARE
+  %{
+    double Nsum;
+    double psum;
+    double p2sum;
+  %}
+
+INITIALIZE
+  %{
+    Nsum = 0;
+    psum = 0;
+    p2sum = 0;
+  %}
+
+TRACE
+  %{
+    double p2 = p*p;
+    #pragma acc atomic
+    Nsum = Nsum + 1;
+    #pragma acc atomic
+    psum = psum + p;
+    #pragma acc atomic
+    p2sum = p2sum + p2;
+    SCATTER;
+  %}
+
+SAVE
+  %{
+    char full_name[1024];
+    sprintf(full_name, "4PI monitor %s", NAME_CURRENT_COMP);
+    DETECTOR_OUT_0D(full_name, Nsum, psum, p2sum);
+  %}
+
+MCDISPLAY
+%{
+  
+%}
+
+END

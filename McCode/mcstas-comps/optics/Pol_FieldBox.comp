@@ -1,0 +1,102 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Pol_FieldBox
+*
+* %I
+*
+* Written by: Erik B Knudsen and P Willendrup
+* Date: 2013
+* Version: $Revision$
+* Release: McStas 2.0
+* Origin: Risoe
+*
+* Box containing a constant magnetic field
+*
+* %D
+*
+*
+* %P
+* xwidth:  [m] Width of the box containing the field.
+* yheight: [m] Height of the box containing the field.
+* zdepth:  [m] Depth of the box containing the field.
+* Bx:  [T] Magnetic field strength along the x-axis.
+* By:  [T] Magnetic field strength along the y-axis.
+* Bz:  [T] Magnetic field strength along the z-axis.
+* filename: [text] Name of file containing the magnetic field.
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT Pol_FieldBox
+
+SETTING PARAMETERS (xwidth,yheight,zdepth, Bx=0,By=1e-3,Bz=0)
+
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+
+SHARE
+%{
+    %include "pol-lib"
+%}
+
+DECLARE
+%{
+  double Bprms[3];
+%}
+
+INITIALIZE
+%{
+  /*constant magnetic field in the box*/
+  Bprms[0]=Bx;Bprms[1]=By;Bprms[2]=Bz;
+%}
+
+
+
+TRACE
+%{
+    int hit;
+    double t0,t1;
+    if (hit=box_intersect(&t0,&t1,x,y,z,vx,vy,vz,xwidth,yheight,zdepth)){
+        if(t0>0) PROP_DT(t0);
+        double phi_prec;
+        if(t1-t0>0){
+          PROP_DT(t1-t0);
+          /*do the precession "manually"*/
+          phi_prec= fmod(sqrt(Bx*Bx+ By*By+ Bz*Bz) * (t1-t0)*mc_pol_omegaL, 2*PI);
+          double sx_i,sy_i,sz_i;
+          sx_i=sx;sy_i=sy;sz_i=sz;
+          rotate(sx, sy, sz, sx_i,sy_i,sz_i, phi_prec, Bx, By, Bz);
+        }
+    }
+
+%}
+
+MCDISPLAY
+%{
+  const int nDash = 10;
+  double xw_2,yh_2,zd_2;
+  xw_2=xwidth/2.0;yh_2=yheight/2.0;zd_2=zdepth/2.0;
+  /*entrance*/
+  dashed_line(-xw_2, -yh_2, +zd_2,  xw_2, -yh_2, -zd_2, nDash);
+  dashed_line(-xw_2, -yh_2, +zd_2, -xw_2,  yh_2, +zd_2, nDash);
+  dashed_line( xw_2,  yh_2, -zd_2, -xw_2,  yh_2, +zd_2, nDash);
+  dashed_line( xw_2,  yh_2, -zd_2,  xw_2, -yh_2, -zd_2, nDash);
+
+  /*exit*/
+  dashed_line(-xw_2, -yh_2, zdepth+zd_2,  xw_2, -yh_2, zdepth-zd_2, nDash);
+  dashed_line(-xw_2, -yh_2, zdepth+zd_2, -xw_2,  yh_2, zdepth+zd_2, nDash);
+  dashed_line( xw_2,  yh_2, zdepth-zd_2, -xw_2,  yh_2, zdepth+zd_2, nDash);
+  dashed_line( xw_2,  yh_2, zdepth-zd_2,  xw_2, -yh_2, zdepth-zd_2, nDash);
+
+  /*4 lines to make a box*/
+  dashed_line(-xw_2, -yh_2, +zd_2, -xw_2, -yh_2, zdepth+zd_2, nDash);
+  dashed_line(-xw_2,  yh_2, +zd_2, -xw_2,  yh_2, zdepth+zd_2, nDash);
+  dashed_line( xw_2, -yh_2, -zd_2,  xw_2, -yh_2, zdepth-zd_2, nDash);
+  dashed_line( xw_2,  yh_2, -zd_2,  xw_2,  yh_2, zdepth-zd_2, nDash);
+%}
+
+END

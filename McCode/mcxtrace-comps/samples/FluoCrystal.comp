@@ -1,0 +1,913 @@
+/*****************************************************************************
+*
+* McXtrace, X-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: FluoCrystal
+*
+* %Identification
+* Written by: Emmanuel Farhi (emmanuel.farhi.synchrotron-soleil.fr)
+* Date:       April 2025
+* Origin:     Synchrotron SOLEIL
+* Release:    McXtrace 3.5
+*
+* Sample model handling absorption, fluorescence, Compton, Rayleigh scattering and single crystal diffraction.
+*
+* %Description
+* Sample that models multiple photon-matter interactions:
+* - absorption          (photon excites an electron and creates a hole)
+* - fluorescence        (excited electrons emit light while falling into lower states)
+* - Compton scattering  (inelastic, incoherent)
+* - Rayleigh scattering (elastic,   coherent)
+* - crystal diffraction (elastic,   coherent)
+*
+* The 'material' specification is given as a chemical formulae, e.g. "LaB6". It
+* may also be given as a file name (CIF/LAU/LAZ/FullProf format) in which case
+* the formulae is guessed (but may be approximative), and the crystal
+* diffraction is computed, following same options as the <b>PowderN</b>
+* sample component. The fluorescence is handled for atoms from Z=5 to Z=90.
+*
+* By setting the 'order' to 1, the absorption along the scattered path is handled.
+* A higher 'order' will handle multiple scattering events, and final absorption.
+* For instance, a value order>=2 handles e.g. fluorescence iterative cascades
+* in the material. Leaving 'order=0' handles the single scattering only.
+*
+* The single crystal diffraction model is simplified wrt the <b>Single_crystal</b>
+* component. Use that latter with a Fluorescence in a GROUP for more complex features.
+*
+* Example: FluoCrystal(material="LaB6.cif",
+*  xwidth=0.001,yheight=0.001,zdepth=0.0001, p_interact=0.99, mosaic=3)
+*
+* <b>Sample shape:</b>
+* Sample shape may be a cylinder, a sphere, a box or any other shape
+*   box/plate:       xwidth x yheight x zdepth (thickness=0)
+*   hollow box/plate:xwidth x yheight x zdepth and thickness>0
+*   cylinder:        radius x yheight (thickness=0)
+*   hollow cylinder: radius x yheight and thickness>0
+*   sphere:          radius (yheight=0 thickness=0)
+*   hollow sphere:   radius and thickness>0 (yheight=0)
+*   any shape:       geometry=OFF file
+*
+*   The complex geometry option handles any closed non-convex polyhedra.
+*   It computes the intersection points of the photon ray with the object
+*   transparently, so that it can be used like a regular sample object.
+*   It supports the OFF, PLY and NOFF file format but not COFF (colored faces).
+*   Such files may be generated from XYZ data using:
+*     qhull < coordinates.xyz Qx Qv Tv o > geomview.off
+*   or
+*     powercrust coordinates.xyz
+*   and viewed with geomview or java -jar jroff.jar (see below).
+*   The default size of the object depends of the OFF file data, but its
+*   bounding box may be resized using xwidth,yheight and zdepth.
+*
+* <b>Concentric components:</b>
+* This component has the ability to contain other components when used in
+* hollow cylinder geometry (namely sample environment, e.g. cryostat and
+* furnace structure). Such component 'shells' should be split into input and
+* output side surrounding the 'inside' components. First part must then use
+* 'concentric=1' flag to enter the inside part. The component itself must be
+* repeated to mark the end of the concentric zone. The number of concentric
+* shells and number of components inside is not limited.
+*
+* COMPONENT F_in = FluoCrystal(material="Al", concentric=1, ...)
+* AT (0,0,0) RELATIVE sample_position
+*
+* COMPONENT something_inside ... // e.g. the sample itself or other materials
+*
+* COMPONENT F_out = COPY(F_in)(concentric=0)
+* AT (0,0,0) RELATIVE sample_position
+*
+* <b>Enhancing computation efficiency:</b>
+* An important option to enhance statistics is to set 'p_interact' to, say,
+* 30 percent (0.3) in order to force a fraction of the beam to scatter. This
+* will result on a larger number of scattered events, retaining intensity.
+*
+* In addition, it may be desirable to define a 'target' for the fluorescence
+* processes via e.g. the 'target_index' and the 'focus_xw / focus_yh' options.
+* This target should e.g. be the SDD area.
+*
+* The SPLIT feature is currently BROKEN with this component. Do not use it.
+*
+* If you get strange results, check the crystal mosaicity and delta(d)/d parameters,
+* as this component is not suited for ideal/perfect mosaic crystals.
+*
+* The fluorescence is computed via the XRayLib (apt install libxrl-dev) https://github.com/tschoonj/xraylib.
+*
+* %Parameters
+* material:     [str] A CIF/LAZ/LAU file e.g. "LaB6.cif" to handle diffraction or chemical formulae, e.g. "Pb2SnO4" (no diffraction).
+* weight:     [g/mol] Atomic/molecular weight of material.
+* density:   [g/cm^3] Density of material. V_rho=density/weight/1e24*N_A at/Angs^3.
+* packing_factor: [1] How dense is the material compared to bulk 0-1.
+* radius:         [m] Outer radius of sample in (x,z) plane. cylinder/sphere.
+* xwidth:         [m] Width for a box sample shape.
+* yheight:        [m] Height of sample in vertical direction for box/cylinder shapes.
+* zdepth:         [m] Depth for a box sample shape.
+* thickness:      [m] Thickness of hollow sample Negative value extends the hollow volume outside of the box/cylinder.
+* concentric:     [1] Indicate that this component has a hollow geometry and may contain other components. It should then be duplicated after the inside part (only for box, cylinder, sphere).
+* geometry:     [str] Name of an Object File Format (OFF) or PLY file for complex geometry. The OFF/PLY file may be generated from XYZ coordinates using qhull/powercrust.
+* p_interact:     [1] Force a given fraction of the beam to scatter, keeping intensity right, to enhance small signals (-1 inactivate).
+* focus_xw:       [m] Horiz. dimension of a rectangular area (for fluorescence).
+* focus_yh:       [m] Vert.  dimension of a rectangular area (for fluorescence).
+* focus_aw:     [deg] Horiz. angular dimension of a rectangular area (for fluorescence).
+* focus_ah:     [deg] Vert.  angular dimension of a rectangular area (for fluorescence).
+* focus_r:        [m] Radius of disk containing target. Use 0 for full space (for fluorescence).
+* target_index:   [1] Relative index of component to focus at, e.g. next is +1 (for fluorescence).
+* target_x:       [m] Position of target to focus at, along X (for fluorescence).
+* target_y:       [m] Position of target to focus at, along Y (for fluorescence).
+* target_z:       [m] Position of target to focus at, along Z (for fluorescence).
+* flag_compton:   [1] When 0, the Compton  scattering is ignored.
+* flag_rayleigh:  [1] When 0, the Rayleigh scattering is ignored.
+* flag_sx:        [1] When 0, the crystal diffraction is ignored.
+* flag_lorentzian:[1] When 1, the fluorescence line shapes are assumed to be Lorentzian, else Gaussian.
+* flag_kissel:    [1] When 1 (slower), handle M-lines XRF from Kissel for Z>=52 Te (else only K and L-lines).
+* order:          [1] Limit multiple fluorescence up to given order. Last iteration is absorption only.
+* sx_refl:      [str] A CIF/LAZ/LAU reflection file as for PowderN. When not given, 'material' is used. Specify it when 'material' is a chemical formula.
+* barns:          [1] Flag to indicate if |F|^2 from 'material' is in barns or fm^2, (barns=1 for laz/cif, barns=0 for lau type files).
+* delta_d_d:      [1] Lattice spacing variance, gaussian RMS (longitudinal mosaic) e.g. 1e-4 to 1e-3.
+* mosaic:   [arc min] Crystal mosaic (isotropic), gaussian RMS. Puts the crystal in the isotropic mosaic model state, thus disregarding other mosaicity parameters, e.g. 1-10.
+* mosaic_a: [arc min] Horizontal (rotation around lattice vector a) mosaic (anisotropic), gaussian RMS. Put the crystal in the anisotropic crystal vector state. I.e. model mosaicity through rotation around the crystal lattice vectors. Has precedence over in-plane mosaic model.
+* mosaic_b: [arc min] Vertical (rotation around lattice vector b) mosaic (anisotropic), gaussian RMS.
+* mosaic_c: [arc min] Out-of-plane (Rotation around lattice vector c) mosaic (anisotropic), gaussian RMS
+* mosaic_AB: [arc_minutes, arc_minutes,1, 1, 1, 1, 1, 1]  In Plane mosaic rotation and plane vectors (anisotropic), mosaic_A, mosaic_B, A_h,A_k,A_l, B_h,B_k,B_l. Puts the crystal in the in-plane mosaic state. Vectors A and B define plane in which  the crystal roation is defined, and mosaic_A, mosaic_B, denotes the resp. mosaicities (gaussian RMS) with respect to the two reflections chosen by A and B (Miller indices).
+* recip_cell:     [1] Choice of direct/reciprocal (0/1) unit cell definition
+* ax:   [AA or AA^-1] Coordinates of first (direct/recip) unit cell vector
+* ay:   [AA or AA^-1]   a on y axis
+* az:   [AA or AA^-1]   a on z axis
+* bx:   [AA or AA^-1] Coordinates of second (direct/recip) unit cell vector
+* by:   [AA or AA^-1]   b on y axis
+* bz:   [AA or AA^-1]   b on z axis
+* cx:   [AA or AA^-1] Coordinates of third (direct/recip) unit cell vector
+* cy:   [AA or AA^-1]   c on y axis
+* cz:   [AA or AA^-1]   c on z axis
+*
+* CALCULATED PARAMETERS:
+* type: scattering event type 0=fluorescence, 1=Rayleigh, 2=Compton, 3=transmit (absorbsion), 4=diffraction
+*
+* %Link
+* The XRayLib https://github.com/tschoonj/xraylib http://dx.doi.org/10.1016/j.sab.2011.09.011
+* %Link
+* Fluorescence https://en.wikipedia.org/wiki/Fluorescence
+* %Link
+* Rayleigh https://en.wikipedia.org/wiki/Rayleigh_scattering
+* %Link
+* Compton https://en.wikipedia.org/wiki/Compton_scattering
+* %Link
+* X-ray absorption edges http://skuld.bmsc.washington.edu/scatter/AS_periodic.html
+* %Link
+* X-ray fluorescence spectra http://www.xrfresearch.com/xrf-spectra/
+* %Link
+* X-ray edges and fluo lines https://physics.nist.gov/PhysRefData/XrayTrans/Html/search.html
+*
+* %E
+***********************************************************/
+
+DEFINE COMPONENT FluoCrystal
+SETTING PARAMETERS(
+  string geometry=0,
+  radius=0, thickness=0,
+  xwidth=0, yheight=0, zdepth=0,
+  int concentric=0,
+  string material="LaB6.cif", packing_factor=0, density=0, weight=0,
+  p_interact=0,
+  target_x = 0, target_y = 0, target_z = 0, focus_r = 0,
+  focus_xw=0, focus_yh=0, focus_aw=0, focus_ah=0, int target_index=0,
+  int flag_compton=1, int flag_rayleigh=1, int flag_lorentzian=0,
+  int flag_kissel=0,
+  string sx_refl="",  int flag_sx=1,
+  delta_d_d=1e-3,     int barns=1,
+  recip_cell=0,
+  ax = 0, ay = 0, az = 0,
+  bx = 0, by = 0, bz = 0,
+  cx = 0, cy = 0, cz = 0,
+  aa=0,   bb=0,   cc=0,
+  vector mosaic_AB={0,0, 0,0,0, 0,0,0},
+  mosaic = 3, mosaic_a = -1, mosaic_b = -1, mosaic_c = -1,
+  int order=1)
+
+/* X-ray parameters: (x,y,z,kx,ky,kz,phi,t,Ex,Ey,Ez,p) */
+DEPENDENCY " @XRLFLAGS@ -DUSE_OFF "
+NOACC
+
+/* ========================================================================== */
+
+SHARE
+  INHERIT Single_crystal
+  INHERIT Fluorescence
+
+/* ========================================================================== */
+
+DECLARE INHERIT Single_crystal EXTEND %{
+  struct   compoundData *compound;
+  DArray1d cum_massFractions;
+  DArray1d cum_xs_fluo;
+  DArray1d cum_xs_Compton;
+  DArray1d cum_xs_Rayleigh;
+  int    shape;
+  int    n_fluo;
+  int    n_Compton;
+  int    n_Rayleigh;
+  int    n_diff;
+  double p_fluo;
+  double p_Compton;
+  double p_Rayleigh;
+  double p_diff;
+  double fluo_rho;
+  // offdata is declared in PowderN
+
+  // cached values for SPLIT
+  int    reuse_nb;
+  int    reuse_intersect;
+  double reuse_ki;
+  double reuse_l0;
+  double reuse_l1;
+  double reuse_l2;
+  double reuse_l3;
+  double reuse_sigma_barn;
+  DArray1d reuse_cum_xs_fluo;
+  DArray1d reuse_cum_xs_Compton;
+  DArray1d reuse_cum_xs_Rayleigh;
+  double   reuse_cum_xs_diffraction;
+  double   reuse_coh_refl;
+  double   reuse_coh_xsect;
+  int      reuse_tau_count;
+%}
+
+INITIALIZE %{
+
+  /* energies en [keV], angles in [radians], XRL CSb cross sections are in [barn/atom] */
+  double     E0, dE;
+  xrl_error *error = NULL;
+  int        i;
+
+  XRayInit();
+
+  shape=-1; /* -1:no shape, 0:cyl, 1:box, 2:sphere, 3:any-shape  */
+  if (geometry && strlen(geometry) && strcmp(geometry, "NULL") && strcmp(geometry, "0")) {
+    #ifndef USE_OFF
+    fprintf(stderr,"Error: You are attempting to use an OFF geometry without -DUSE_OFF."
+                   "You will need to recompile with that define set!\n");
+    exit(-1);
+    #else
+    if (off_init(geometry, xwidth, yheight, zdepth, 0, &offdata)) {
+      shape=3; thickness=0; concentric=0;
+    }
+    #endif
+  }
+  else if (xwidth && yheight && zdepth)  shape=1; /* box */
+  else if (radius > 0 &&  yheight)       shape=0; /* cylinder */
+  else if (radius > 0 && !yheight)       shape=2; /* sphere */
+
+  if (shape < 0)
+    exit(fprintf(stderr,"FluoCrystal: %s: sample has invalid dimensions.\n"
+                        "ERROR       Please check parameter values (xwidth, yheight, zdepth, radius).\n", NAME_CURRENT_COMP));
+
+  if (!material || !strlen(material) || !strcmp(material, "NULL") || !strcmp(material, "0"))
+    exit(fprintf(stderr, "ERROR: FluoCrystal: %s: Null material specification.\n", NAME_CURRENT_COMP));
+
+  if (order > 1 && flag_lorentzian)
+    fprintf(stderr, "FluoCrystal: WARNING: %s: Using flag_lorentzian=1 Lorentzian line-shape with order>1 may create artifacts.\n", NAME_CURRENT_COMP);
+
+  // test if the material is given as a file
+  char formula[16384];
+  formula[0]='\0';
+  FILE *file = Open_File(material, "r", NULL);
+  if (file != NULL) {
+    fclose(file);
+    // open the material structure file (laz/lau/cif...)
+    // search (case sensitive) along lines
+    if (!fluo_get_material(material, formula))
+      exit(fprintf(stderr, "ERROR: FluoCrystal: %s: file %s does not contain material formulae.\n", NAME_CURRENT_COMP, material));
+
+    MPI_MASTER(
+    fprintf(stderr, "FluoCrystal: %s: found material %s from file %s\n",
+            NAME_CURRENT_COMP, formula, material);
+    );
+
+    // load SX lines, when given as a valid file
+    // set SX variables to default before reading file
+    if (flag_sx) {
+      strncpy(hkl_info.compname, NAME_CURRENT_COMP, 256);
+      hkl_info.ctr_size=0;
+      hkl_info.ctr_k   =NULL;
+      hkl_info.ctr_FT2 =NULL;
+      hkl_info.ctr_dir =NULL;
+      /* transfer input parameters */
+      hkl_info.m_delta_d_d = delta_d_d;
+      hkl_info.m_a  = 0;
+      hkl_info.m_b  = 0;
+      hkl_info.m_c  = 0;
+      hkl_info.m_aa = aa;
+      hkl_info.m_bb = bb;
+      hkl_info.m_cc = cc;
+      hkl_info.m_ax = ax;
+      hkl_info.m_ay = ay;
+      hkl_info.m_az = az;
+      hkl_info.m_bx = bx;
+      hkl_info.m_by = by;
+      hkl_info.m_bz = bz;
+      hkl_info.m_cx = cx;
+      hkl_info.m_cy = cy;
+      hkl_info.m_cz = cz;
+      hkl_info.recip= recip_cell;
+
+      /* default format h,k,l,F,F2  */
+      hkl_info.column_order[0]=1;
+      hkl_info.column_order[1]=2;
+      hkl_info.column_order[2]=3;
+      hkl_info.column_order[3]=0;
+      hkl_info.column_order[4]=7;
+      hkl_info.kix = hkl_info.kiy = hkl_info.kiz = 0;
+      hkl_info.nb_reuses = hkl_info.nb_refl = hkl_info.nb_refl_count = 0;
+      hkl_info.tau_count = 0;
+      hkl_info.flag_barns= barns;
+      double* mosaic_ABin = mosaic_AB;
+
+      if (!sx_refl || !strlen(sx_refl) || !strcmp(sx_refl, "NULL") || !strcmp(sx_refl, "0"))
+        strcpy(sx_refl, material);
+      i = read_hkl_data(sx_refl, &hkl_info, &hkl_list, mosaic, mosaic_a, mosaic_b, mosaic_c, mosaic_ABin,
+                        hkl_info.ctr_size,hkl_info.ctr_k,hkl_info.ctr_FT2,hkl_info.ctr_dir);
+      if (i == 0) {
+        MPI_MASTER(
+        fprintf(stderr,"WARNING: FluoCrystal: %s: mosaic or material file %s is not valid (CIF/LAU). Ignoring diffraction process.\n",
+                      NAME_CURRENT_COMP, sx_refl);
+        );
+        flag_sx=0;
+      } else if (hkl_info.count) {
+        MPI_MASTER(
+          printf("FluoCrystal: %s: Read %d reflections from file '%s'\n",
+                          NAME_CURRENT_COMP, hkl_info.count, sx_refl);
+          printf("Direct space lattice orientation: Vc=%g [Angs^3]\n", hkl_info.V0);
+          printf("  a  = [%g %g %g]\n", hkl_info.m_ax, hkl_info.m_ay, hkl_info.m_az);
+          printf("  b  = [%g %g %g]\n", hkl_info.m_bx, hkl_info.m_by, hkl_info.m_bz);
+          printf("  c  = [%g %g %g]\n", hkl_info.m_cx, hkl_info.m_cy, hkl_info.m_cz);
+          printf("Reciprocal space lattice orientation:\n");
+          printf("  a* = [%g %g %g]\n", hkl_info.asx, hkl_info.asy, hkl_info.asz);
+          printf("  b* = [%g %g %g]\n", hkl_info.bsx, hkl_info.bsy, hkl_info.bsz);
+          printf("  c* = [%g %g %g]\n", hkl_info.csx, hkl_info.csy, hkl_info.csz);
+        );
+      } else flag_sx = 0;
+    }
+
+    strncpy(material, formula, 16384);
+    // CIF: _chemical_formula_structural 'chemical_formulae'
+    // CIF: _chemical_formula_sum 'chemical_formulae'
+    // LAZ/LAU: # ATOM <at> <trailing>
+    // LAZ/LAU: # Atom <at> <trailing>
+    // LAZ/LAU: # TITLE <at> <at> ... [ trailing...]
+    // CFL: Title <chemical_formulae>
+    // CFL: Atom <at> <trailing>
+
+  }
+
+  compound = CompoundParser(material, &error); /* XRayLib */
+  if (error != NULL) {
+    exit(fprintf(stderr, "ERROR: %s: Invalid material %s: %s\n",
+      NAME_CURRENT_COMP, material, error->message));
+  }
+  xrl_error_free(error);
+
+  /* compute total density for raw material and display information ========= */
+  if (weight <= 0) weight = compound->molarMass; /* g/mol */
+  MPI_MASTER(
+    printf("%s: Material %s mass fractions:\n",
+      NAME_CURRENT_COMP, material);
+  )
+
+  double mat_density       = 0; /* g/cm3 */
+  double sum_massFractions = 0;
+  cum_massFractions        = create_darr1d(compound->nElements+1);
+  cum_xs_fluo              = create_darr1d(compound->nElements+1);
+  cum_xs_Compton           = create_darr1d(compound->nElements+1);
+  cum_xs_Rayleigh          = create_darr1d(compound->nElements+1);
+  cum_massFractions[0]     = 0;
+
+  /* print material information, and check for elements */
+  for (i=0; i< compound->nElements; i++) {
+    int    Z      = compound->Elements[i];
+    error = NULL;
+    double Z_dens = ElementDensity(Z, &error);
+    if (error != NULL)
+      exit(fprintf(stderr, "ERROR: %s: Z=%i %s\n", NAME_CURRENT_COMP, Z, error->message));
+    mat_density           += compound->massFractions[i]*Z_dens;
+    sum_massFractions     += compound->massFractions[i];
+    cum_massFractions[i+1] = sum_massFractions;
+    MPI_MASTER(
+      printf("  | %6.2g %%: Z=%3i %3s %8.3g [g/mol] %8.3g [g/cm3]\n",
+        compound->massFractions[i]*100, Z, AtomicNumberToSymbol(Z,NULL), AtomicWeight(Z, NULL),
+        Z_dens);
+    )
+  }
+  xrl_error_free(error);
+  if (density <= 0)        density        = mat_density;   /* g/cm3 */
+  if (packing_factor <= 0) packing_factor = density/mat_density;
+
+  /* molar volume [cm^3/mol] = weight [g/mol] / density [g/cm^3] */
+  /* atom density per Angs^3 = [mol/cm^3] * N_Avogadro *(1e-8)^3 */
+  fluo_rho = density/weight/1e24*NA; // atom density [at/Angs-3]
+  MPI_MASTER(
+    printf("%s: Material %s M=%g [g/mol] density=%g [g/cm3] rho=%g [at/Angs-3]",
+      NAME_CURRENT_COMP, material, weight, density, fluo_rho);
+    if (fabs(packing_factor-1) > 1e-2)
+      printf(" packing_factor=%g", packing_factor);
+    printf("\n");
+  );
+  if (0 < packing_factor && packing_factor < 1) fluo_rho *= packing_factor;
+
+  /* target for scattering ================================================== */
+  if (!target_index && !target_x && !target_y && !target_z) target_index=1;
+  if (target_index)
+  {
+    Coords ToTarget;
+    ToTarget = coords_sub(POS_A_COMP_INDEX(INDEX_CURRENT_COMP+target_index),POS_A_CURRENT_COMP);
+    ToTarget = rot_apply(ROT_A_CURRENT_COMP, ToTarget);
+    coords_get(ToTarget, &target_x, &target_y, &target_z);
+  }
+  if (!(target_x || target_y || target_z)) {
+    MPI_MASTER(
+    printf("WARNING: FluoCrystal: %s: The target is not defined. Using 4PI for fluorescence.\n",
+      NAME_CURRENT_COMP);
+    );
+  }
+
+  n_fluo = n_Compton = n_Rayleigh = n_diff = 0;
+  p_fluo = p_Compton = p_Rayleigh = p_diff = 0;
+
+  // cached variables set to 0 (for SPLIT)
+  reuse_nb=0;
+  reuse_ki=reuse_l0=reuse_l1=reuse_l2=reuse_l3=reuse_sigma_barn=0;
+  reuse_cum_xs_fluo              = create_darr1d(compound->nElements+1);
+  reuse_cum_xs_Compton           = create_darr1d(compound->nElements+1);
+  reuse_cum_xs_Rayleigh          = create_darr1d(compound->nElements+1);
+  reuse_cum_xs_fluo[0]=reuse_cum_xs_Compton[0]=reuse_cum_xs_Rayleigh[0]=0;
+%}
+
+TRACE %{
+
+int    intersect=0;       /* flag to continue/stop */
+int    reuse    =0;       /* flag raised when reusing (SPLIT) */
+int    type     =-1;      /* type of interaction */
+double l0,  l1,  l2,  l3; /* distances for intersections */
+double dl0, dl1, dl2, dl; /* distance intervals */
+int    flag_concentric = 0;
+int    flag_ishollow   = 0;
+int    event_counter   = 0;         /* scattering event counter (multiple fluorescence) */
+int    force_transmit  = 0;         /* Flag to handle cross-section weighting in case of finite order */
+double sigma_barn=0, xs[5];         /* cross sections [barn/atom] fluo/Compton/Rayleigh/diff/transmit */
+double aim_x=0, aim_y=0, aim_z=1;   /* Position of target relative to scattering point */
+
+
+// SX stuff
+double coh_xsect = 0, coh_refl = 0; // diffraction stuff
+
+#ifdef OPENACC
+#ifdef USE_OFF
+off_struct thread_offdata = offdata;
+#endif
+#else
+#define thread_offdata offdata
+#endif
+
+double k, E;
+double ki,pi;
+
+/* Store Initial photon state */
+k  = ki = sqrt(kx*kx+ky*ky+kz*kz); //  Angs-1
+E  = K2E*k; // keV
+pi = p;      // used to test for multiple fluo weighting and order cutoff
+
+// SX init
+struct tau_data *T=tau_list;           /* List of reflections close to Ewald sphere */
+struct hkl_data *L=hkl_list;           /* Structure factor list */
+int tau_count;                /* Number of reflections close to Ewald sphere*/
+
+do { /* while (intersect) Loop over multiple scattering events */
+
+  // test for a SPLIT event (same particle comes in)
+  l0=l1=l2=l3=dl0=dl1=dl2=0;
+  if (!event_counter && fabs(reuse_ki - ki) < 1e-15) {
+    reuse     = 1;
+    reuse_nb++;
+    // use cached values and skip actual computation
+    intersect = reuse_intersect;
+    l0        = reuse_l0;
+    l1        = reuse_l1;
+    l2        = reuse_l2;
+    l3        = reuse_l3;
+
+  } else {
+    // we have a different event: compute intersection lengths
+
+    /* ========================================================================== */
+    /*                                   GEOMETRY                                 */
+    /* ========================================================================== */
+
+    /* Intersection photon trajectory / sample (sample surface) */
+    if (thickness >= 0) {
+      if (shape==0)
+        intersect=cylinder_intersect(&l0,&l3, x,y,z,kx,ky,kz, radius,yheight);
+      else if (shape==1)
+        intersect=box_intersect     (&l0,&l3, x,y,z,kx,ky,kz, xwidth,yheight,zdepth);
+      else if (shape==2)
+        intersect=sphere_intersect  (&l0,&l3, x,y,z,kx,ky,kz, radius);
+      #ifdef USE_OFF
+      else if (shape == 3)
+        intersect=off_x_intersect(&l0, &l3, NULL, NULL, x, y, z, kx,ky,kz, thread_offdata );
+      #endif
+    } else {
+      if (shape==0)
+        intersect=cylinder_intersect(&l0,&l3, x,y,z,kx,ky,kz, radius-thickness,
+          yheight-2*thickness > 0 ? yheight-2*thickness : yheight);
+      else if (shape==1)
+        intersect=box_intersect     (&l0,&l3, x,y,z,kx,ky,kz,
+          xwidth-2*thickness > 0 ?  xwidth-2*thickness : xwidth,
+          yheight-2*thickness > 0 ? yheight-2*thickness : yheight,
+          zdepth-2*thickness > 0 ?  zdepth-2*thickness : zdepth);
+      else if (shape==2)
+        intersect=sphere_intersect  (&l0,&l3, x,y,z,kx,ky,kz, radius-thickness);
+      #ifdef USE_OFF
+      else if (shape == 3)
+        intersect=off_x_intersect   (&l0, &l3, NULL, NULL, x, y, z, kx,ky,kz, thread_offdata );
+      #endif
+    }
+
+
+    /* Computing the intermediate lengths */
+    if (intersect && p_interact >= 0) {
+      flag_ishollow = 0;
+      if (thickness > 0) {
+        if (shape==0 && cylinder_intersect(&l1,&l2, x,y,z,kx,ky,kz, radius-thickness,
+          yheight-2*thickness > 0 ? yheight-2*thickness : yheight))
+          flag_ishollow=1;
+        else if (shape==2 && sphere_intersect   (&l1,&l2, x,y,z,kx,ky,kz, radius-thickness))
+          flag_ishollow=1;
+        else if (shape==1 && box_intersect(&l1,&l2, x,y,z,kx,ky,kz,
+          xwidth-2*thickness > 0 ? xwidth-2*thickness : xwidth,
+          yheight-2*thickness > 0 ? yheight-2*thickness : yheight,
+          zdepth-2*thickness > 0 ? zdepth-2*thickness : zdepth))
+          flag_ishollow=1;
+      } else if (thickness<0) {
+        if (shape==0 && cylinder_intersect(&l1,&l2, x,y,z,kx,ky,kz, radius,yheight))
+          flag_ishollow=1;
+        else if (shape==2 && sphere_intersect   (&l1,&l2, x,y,z,kx,ky,kz, radius))
+          flag_ishollow=1;
+        else if (shape==1 && box_intersect(&l1,&l2, x,y,z,kx,ky,kz, xwidth, yheight, zdepth))
+          flag_ishollow=1;
+      }
+      if (l3 > 1000) l3=0;              // we passed the sample, far away
+      if (!flag_ishollow) l1 = l2 = l3; /* no empty space inside */
+    } /* if intersect */
+
+
+    // store values for potential next SPLIT
+    if (!event_counter) {
+      reuse_intersect = intersect;
+      reuse_l0        = l0;
+      reuse_l1        = l1;
+      reuse_l2        = l2;
+      reuse_l3        = l3;
+      reuse_ki        = ki;
+    }
+    reuse           = 0;
+  } // if !reuse (SPLIT)
+
+  if (intersect) { /* the photon hits the sample */
+
+    if (l0 > 0) {  /* we are before the sample */
+      PROP_DL(l0); /* propagates photon to the entry of the sample */
+    } else if (l1 > 0 && l1 > l0) { /* we are inside first part of the sample */
+      /* no propagation, stay inside */
+    } else if (l2 > 0 && l2 > l1) { /* we are in the hole */
+      PROP_DL(l2); /* propagate to inner surface of 2nd part of sample */
+    } else if (l3 > 0 && l3 > l2) { /* we are in the 2nd part of sample */
+      /* no propagation, stay inside */
+    }
+
+    dl0=l1-(l0 > 0 ? l0 : 0); /* Distance in first part of hollow/cylinder/box */
+    dl1=l2-(l1 > 0 ? l1 : 0); /* Distance in hole */
+    dl2=l3-(l2 > 0 ? l2 : 0); /* Distance in 2nd part of hollow cylinder */
+
+    if (dl0 < 0) dl0 = 0;
+    if (dl1 < 0) dl1 = 0;
+    if (dl2 < 0) dl2 = 0;
+
+    /* initialize concentric mode */
+    if (concentric && !flag_concentric && l0 >= 0
+     && shape==0 && thickness) {
+      flag_concentric=1;
+    }
+
+    if (flag_concentric == 1) {
+      dl1=dl2=0; /* force exit when reaching hole/2nd part */
+    }
+
+    if (!dl0 && !dl2) {
+      intersect = 0; /* the sample was passed entirely */
+    }
+  } // if intersect (geometry)
+
+  /* ========================================================================== */
+  /*                             INTERACTION PROCESS                            */
+  /* ========================================================================== */
+  xs[FLUORESCENCE]=xs[COMPTON]=xs[RAYLEIGH]=xs[TRANSMISSION]=xs[DIFFRACTION]=sigma_barn=0;
+  cum_xs_fluo[0] = cum_xs_Compton[0] = cum_xs_Rayleigh[0] = 0;
+  
+  if (intersect) {
+    double my_s;
+    int    i_Z,i;
+    int    flag=0;
+    double d_path, p_trans, p_scatt, mc_trans, mc_scatt;
+
+    /* compute total scattering cross section ------------------------------ */
+    /* compute each contribution XS */
+    if (!reuse) {
+      for (i_Z=0; i_Z< compound->nElements; i_Z++) {
+        int    Z   = compound->Elements[i_Z];
+        double frac= compound->massFractions[i_Z];
+        double xs_Z[3];
+
+        // get Fluorescence xs
+        XRMC_CrossSections(Z, E, xs_Z, flag_kissel); // [barn/atom]
+        cum_xs_fluo[i_Z+1]     = cum_xs_fluo[i_Z]    +frac*xs_Z[FLUORESCENCE];
+        cum_xs_Rayleigh[i_Z+1] = cum_xs_Rayleigh[i_Z]+frac*xs_Z[RAYLEIGH];
+        cum_xs_Compton[i_Z+1]  = cum_xs_Compton[i_Z] +frac*xs_Z[COMPTON];
+        for (i=0; i<COMPTON+1; i++) { xs[i] += frac*xs_Z[i]; }
+      } // for Z in compound
+      for (i=0; i<3; i++) sigma_barn += xs[i]; // total XS
+
+      if (flag_sx) {
+        // we add the diffraction XS
+        double tau_max   = 2*k/(1 - 5*hkl_info.m_delta_d_d);
+        /* call hkl_search */
+        tau_count = hkl_search(L, T, hkl_info.count, hkl_info.V0,
+                               kx, ky, kz, tau_max,
+                               &coh_refl, &coh_xsect);
+        xs[DIFFRACTION] = coh_xsect;
+        sigma_barn     += xs[DIFFRACTION];
+      } else {
+        xs[DIFFRACTION] = coh_refl = coh_xsect = 0;
+        tau_count       = 0;
+      }
+
+      // store values into cache for SPLIT
+      if (!event_counter) {
+        for (i_Z=0; i_Z< compound->nElements+1; i_Z++) {
+          reuse_cum_xs_fluo[i_Z]     = cum_xs_fluo[i_Z];
+          reuse_cum_xs_Compton[i_Z]  = cum_xs_Compton[i_Z];
+          reuse_cum_xs_Rayleigh[i_Z] = cum_xs_Rayleigh[i_Z];
+        }
+        reuse_sigma_barn          = sigma_barn;
+        if (flag_sx) {
+          reuse_cum_xs_diffraction  = xs[DIFFRACTION];
+          reuse_coh_refl            = coh_refl;
+          reuse_coh_xsect           = coh_xsect;
+          reuse_tau_count           = tau_count;
+        }
+      }
+
+    } else {
+      // reuse cached values (SPLIT), event_counter=0
+      for (i_Z=0; i_Z< compound->nElements+1; i_Z++) {
+        cum_xs_fluo[i_Z]     = reuse_cum_xs_fluo[i_Z];
+        cum_xs_Compton[i_Z]  = reuse_cum_xs_Compton[i_Z];
+        cum_xs_Rayleigh[i_Z] = reuse_cum_xs_Rayleigh[i_Z];
+        xs[FLUORESCENCE]      += reuse_cum_xs_fluo[i_Z];
+        xs[COMPTON]           += reuse_cum_xs_Compton[i_Z];
+        xs[RAYLEIGH]          += reuse_cum_xs_Rayleigh[i_Z];
+      }
+      sigma_barn               = reuse_sigma_barn;
+      if (flag_sx) {
+        xs[DIFFRACTION]        = reuse_cum_xs_diffraction;
+        coh_refl  = hkl_info.coh_refl  = reuse_coh_refl;
+        coh_xsect = hkl_info.coh_xsect = reuse_coh_xsect;
+        tau_count = reuse_tau_count;
+      }
+    }
+
+    /* probability to absorb/scatter --------------------------------------- */
+    /* determine scattering location in sample */
+    my_s   = fluo_rho*100*sigma_barn; /* mu 100: convert from barns to fm^2. my_s in [1/m] */
+    d_path = ( dl0 +dl2 );            /* total path lenght in sample */
+
+    /* Proba of transmission/interaction along length d_path */
+    p_trans = exp(-my_s*d_path); /* probability to not-interact (transmit) */
+    //printf("sigma_barn=%g p_trans=%g\n", sigma_barn, p_trans);
+    p_scatt = 1 - p_trans;       /* portion of beam which scatters */
+
+    /* force a given fraction of the beam to scatter */
+    if (!event_counter && p_interact>0 && p_interact<=1) {
+      /* we force a portion of the beam to interact */
+      /* This is used to improve statistics */
+      mc_trans = 1-p_interact;
+    } else {
+      mc_trans = p_trans; /* 1 - p_scatt */
+    }
+    mc_scatt = 1 - mc_trans; /* portion of beam to scatter (or force to) */
+    if (mc_scatt <= 0) ABSORB;
+
+    if (!force_transmit && mc_scatt > 0 && (mc_scatt >= 1 || rand01() < mc_scatt)) {
+      /* we "scatter" with one of the interaction processes */
+      dl = -log(1 - rand0max((1 - exp(-my_s*d_path)))) / my_s; /* length */
+      /* If t0 is in hole, propagate to next part of the hollow cylinder */
+      if (dl1 > 0 && dl0 > 0 && dl > dl0) dl += dl1;
+      /* photon propagation to the scattering point */
+      PROP_DL(dl);
+      p *= fabs(p_scatt/mc_scatt); /* account for p_interact, lower than 1 */
+
+    } else { // force_transmit
+      /* we go through the material without interaction, and exit */
+      if (type <0) type = TRANSMISSION; // transmission
+      intersect = 0;
+      PROP_DL(d_path);
+      /* attenuate beam by portion which is scattered (and left along) */
+      p *= p_trans;
+      if (!event_counter && p_interact>0 && p_interact<=1) p /= mc_trans;
+      break; // end while (intersect)
+    }
+
+  } /* if intersect (propagate) */
+
+  /* select scattering line ------------------------------------------------ */
+  if (intersect) { /* scattering event */
+    int    i_Z=-1, Z, j=-1;
+    double solid_angle=0;
+    double theta, dsigma, alpha;
+    double Ef, dE, sum;
+    double kf=k, kf_x, kf_y, kf_z;  // next particle direction
+
+    /* MC choose process from cross sections 'xs': fluo, Rayleigh, Compton, diff */
+    type = XRMC_SelectInteraction(xs, DIFFRACTION+1, rand01()); // up to DIFFRACTION
+
+    /* choose Z (element) on associated XS, taking into account mass-fractions */
+    switch (type) {
+      case FLUORESCENCE:
+        i_Z = XRMC_SelectFromDistribution(cum_xs_fluo,     compound->nElements+1, rand01());
+        break;
+      case RAYLEIGH:
+        if (!flag_rayleigh) ABSORB;
+        i_Z = XRMC_SelectFromDistribution(cum_xs_Rayleigh, compound->nElements+1, rand01());
+        break;
+      case COMPTON:
+        if (!flag_compton)  ABSORB;
+        i_Z = XRMC_SelectFromDistribution(cum_xs_Compton,  compound->nElements+1, rand01());
+        break;
+      case DIFFRACTION:
+        if (!flag_sx)       ABSORB;
+        if (tau_count > 1) {
+          sum=0;
+          // choose a line among those possible, using F2 as relative probability/intensity
+          j = hkl_select(T, tau_count, coh_refl, &sum,_particle);
+          if(j >= tau_count) j = tau_count - 1;
+        } else j = 0; /* Select between tau_count Bragg spots */
+          break;
+      default: // should never happen
+        // printf("WARNING: %s: process %i unknown. Absorb.\n", NAME_CURRENT_COMP, type);
+        ABSORB;
+    }
+
+    // select scattering direction --------------------------------------------
+    if (i_Z >= 0) {
+      // fluorescence/Rayleigh/Compton: 4PI scattering
+      Z   = compound->Elements[i_Z];
+
+      /* select outgoing vector */
+      if ((target_x || target_y || target_z)) {
+        aim_x = target_x-x;       /* Vector pointing at target (anal./det.) */
+        aim_y = target_y-y;
+        aim_z = target_z-z;
+      }
+      if(focus_aw && focus_ah) {
+        randvec_target_rect_angular(&kf_x, &kf_y, &kf_z, &solid_angle,
+          aim_x, aim_y, aim_z, focus_aw, focus_ah, ROT_A_CURRENT_COMP);
+      } else if(focus_xw && focus_yh) {
+        randvec_target_rect(&kf_x, &kf_y, &kf_z, &solid_angle,
+          aim_x, aim_y, aim_z, focus_xw, focus_yh, ROT_A_CURRENT_COMP);
+      } else {
+        randvec_target_circle(&kf_x, &kf_y, &kf_z, &solid_angle, aim_x, aim_y, aim_z, focus_r);
+      }
+      p *= solid_angle/(4*PI); // correct for selected solid-angle
+
+    } else if (j >= 0) {
+      // SX diffraction
+      int i = T[j].index; // index in L
+      /* Pick scattered wavevector kf from 2D Gauss distribution. */
+      double z1  = randnorm();
+      double z2  = randnorm();
+      double y1  = T[j].l11*z1 + T[j].y0x;
+      double y2  = T[j].l12*z1 + T[j].l22*z2 + T[j].y0y;
+      double kfx = T[j].rho_x  + T[j].ox     + T[j].b1x*y1 + T[j].b2x*y2;
+      double kfy = T[j].rho_y  + T[j].oy     + T[j].b1y*y1 + T[j].b2y*y2;
+      double kfz = T[j].rho_z  + T[j].oz     + T[j].b1z*y1 + T[j].b2z*y2;
+
+      /* Normalize kf to length of ki, to account for planer
+         approximation of the Ewald sphere. */
+      double adjust = ki/sqrt(kfx*kfx + kfy*kfy + kfz*kfz);
+      kfx *= adjust;
+      kfy *= adjust;
+      kfz *= adjust;
+
+      /* Adjust photon weight (see manual for explanation). */
+      double pmul = T[j].xsect*coh_refl/(coh_xsect*T[j].refl);
+      if (!isnan(pmul)) p *= pmul;
+      kf_x = L[i].u1x*kfx + L[i].u2x*kfy + L[i].u3x*kfz;
+      kf_y = L[i].u1y*kfx + L[i].u2y*kfy + L[i].u3y*kfz;
+      kf_z = L[i].u1z*kfx + L[i].u2z*kfy + L[i].u3z*kfz;
+    } else ABSORB; // should never happen
+
+    NORM(kf_x, kf_y, kf_z);  // normalize the outout direction |kf|=1
+
+    // determine final energy
+    switch (type) {
+      case FLUORESCENCE: /* 0 Fluo: choose line */
+        Ef      = XRMC_SelectFluorescenceEnergy(Z, E, &dE, flag_kissel, rand01()); // dE full-width in keV
+        if (dE) {
+          dE /= 2;  // half-width
+          if (flag_lorentzian) dE  *= tan(PI/2*randpm1()); // Lorentzian distribution
+          else                 dE  *= randnorm();          // Gaussian distribution
+          Ef = Ef + dE;
+        }
+        kf      = Ef*E2K;
+        theta   = acos(scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k);
+        /* add polarisation factor */
+        if (Ex!=0 || Ey!=0 || Ez!=0){
+          double EE=sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
+          double s=scalar_prod(kf_x,kf_y,kf_z,Ex,Ey,Ez)/EE;
+          p *= (1-s)*(1-s);
+        } else {
+          /*unpolarized light in - means an effective reduction according to only theta*/
+          p *= (1+cos(theta)*cos(theta))*0.5;
+        }
+        n_fluo++;
+        p_fluo += p;
+        break;
+
+      case RAYLEIGH:     /* 1 Rayleigh: Coherent, elastic    */
+        theta      = acos(scalar_prod(kf_x,kf_y,kf_z, kx, ky,kz)/k); // kf is the previous |k|
+        dsigma     = DCSb_Rayl(Z,  E, theta, NULL); // [barn/at/st]
+        p         *= 4*PI*dsigma/xs[RAYLEIGH];
+        n_Rayleigh++;
+        p_Rayleigh+= p;
+        break;
+
+      case COMPTON:      /* 2 Compton: Incoherent: choose final energy */
+        theta      = acos(scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k); // kf is the previous |k|
+        dsigma     = DCS_Compt(Z,  Ef, theta, NULL); // [barn/at/st] Ef is the previous particle energy
+        kf         = ComptonEnergy(Ef, theta, NULL)*E2K; /* XRayLib, fraction of emc2=511 keV */
+        p         *= 4*PI*dsigma/xs[COMPTON];
+        n_Compton++;
+        p_Compton += p;
+        break;
+
+      case DIFFRACTION:  /* 3 diffraction: line chosen before */
+        n_diff++;
+        p_diff += p;
+        theta   = acos(scalar_prod(kf_x,kf_y, kf_z, kx,ky,kz)/k);
+        /* add polarisation factor */
+        if (Ex!=0 || Ey!=0 || Ez!=0){
+          double EE=sqrt(Ex*Ex+Ey*Ey+Ez*Ez);
+          double s=scalar_prod(kf_x,kf_y,kf_z,Ex,Ey,Ez)/EE;
+          p *= (1-s)*(1-s);
+        } else {
+          /*unpolarized light in - means an effective reduction according to only theta*/
+          p *= (1+cos(theta)*cos(theta))*0.5;
+        }
+        break;
+
+      default:  // should never happen
+        ABSORB;
+    }
+
+    kx = kf*kf_x;
+    ky = kf*kf_y;
+    kz = kf*kf_z;
+    k  = kf;
+    E  = K2E*kf;
+    SCATTER;
+    event_counter++;
+
+    /* exit if multiple scattering order has been reached */
+    if (!order) break; // skip final absorption
+    // stop when order has been reached, or weighting is very low
+    if (order && (event_counter >= order || p/pi < 1e-15)) { force_transmit=1; }
+
+  } // if intersect (scatter)
+} while(intersect); /* end do (intersect) (multiple scattering loop) */
+
+%}
+
+FINALLY %{
+  FreeCompoundData(compound);
+
+  if (n_fluo || n_Compton || n_Rayleigh || n_diff)
+    MPI_MASTER(
+      printf("FluoCrystal: %s: scattered intensity: fluo=%g Compton=%g Rayleigh=%g Diffraction=%g\n",
+        NAME_CURRENT_COMP, p_fluo, p_Compton, p_Rayleigh, p_diff);
+    );
+%}
+
+DISPLAY INHERIT Fluorescence
+
+END
+
+

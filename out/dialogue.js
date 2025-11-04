@@ -52,7 +52,7 @@ async function openCompDialog(filePath) {
     }));
     const units = Object.fromEntries(Object.entries(comp_json.parameter_units).map(([name, value]) => [name, String(value)]));
     const comments = Object.fromEntries(Object.entries(comp_json.parameter_comments).map(([name, value]) => [name, String(value)]));
-    const panel = vscode.window.createWebviewPanel('compDialog', 'Component Parameters', vscode.ViewColumn.Beside, { enableScripts: true,
+    const panel = vscode.window.createWebviewPanel('compDialog', 'Component Parameters', vscode.ViewColumn.Two, { enableScripts: true,
         retainContextWhenHidden: true
     });
     panel.webview.html = getWebviewContent(header, parameters, units, comments);
@@ -285,7 +285,7 @@ function runPythonParserAndReadJSON(component) {
     if (!mcstasPath) {
         throw new Error("Missing configuration: componentViewer.rootPath");
     }
-    const pythonScript = path.join(global_params_1.extensionRootPath, 'src/component_reader.py');
+    const pythonScript = path.join(global_params_1.extensionRootPath, 'media/comp_parser.py');
     const outputPath = path.join(os_1.default.tmpdir(), 'comp_dict.json');
     return new Promise((resolve, reject) => {
         // Run the Python script

@@ -1,0 +1,34 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Place
+*
+* %Identification
+*
+* Written by: Peter Willendrup
+* Date: June 2025
+* Origin: DTU
+*
+* A place in space - alias of Arm
+*
+* %Description
+* Just like Arm, Place does not actually do anything, it is just there to set
+* up a new coordinate system.
+*
+* Example: Place()
+*
+* %Parameters
+* Input parameters:
+*
+* (none)
+*
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT Place INHERIT Arm
+
+END

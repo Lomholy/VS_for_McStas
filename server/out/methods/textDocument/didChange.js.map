@@ -1,0 +1,1 @@
+{"version":3,"file":"didChange.js","sourceRoot":"","sources":["../../../src/methods/textDocument/didChange.ts"],"names":[],"mappings":";;;AAEA,+CAG0B;AAanB,MAAM,SAAS,GAAG,CAAC,OAA4B,EAAQ,EAAE;IAC5D,MAAM,MAAM,GAAG,OAAO,CAAC,MAAqC,CAAC;IAG7D,qBAAS,CAAC,GAAG,CAAC,MAAM,CAAC,YAAY,CAAC,GAAG,EAAE,MAAM,CAAC,cAAc,CAAC,CAAC,CAAC,CAAC,IAAI,CAAC,CAAC;AAC1E,CAAC,CAAC;AALW,QAAA,SAAS,aAKpB"}

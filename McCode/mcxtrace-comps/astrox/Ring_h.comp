@@ -1,0 +1,397 @@
+/*******************************************************************************
+*
+* McXtrace, x-ray tracing package
+*         Copyright, All rights reserved
+*         DTU Physics, Kgs. Lyngby, Denmark
+*         Synchrotron SOLEIL, Saint-Aubin, France
+*
+* Component: Ring_h
+*
+* %Identification
+*
+* Written by: Erik B Knudsen and Desiree D. M. Ferreira 
+* Date: Feb. 2016
+* Version: 1.0
+* Release: McXtrace 1.2
+* Origin: DTU Physics, DTU Space
+* Modified by: Søren Jeppesen 
+* Date: Feb. 2017
+* Version: 1.1
+* Release: McXtrace 1.2
+* Origin: DTU Physics, DTU Space
+*
+* Stack of conical shells as part of a Wolter optic. Hyperbolic version.
+*
+* %Description
+* A stack of conical shells is simulated. Hyperbolic version.
+* To intersect the Wolter I plates we take advatage of the azimuthal symmetry and only consider the radial component
+* of the photon's wavevector.
+*
+* Example: Ring_h( pore_th=0, ring_nr=3, Z0=12, yheight=0.83e-3, mirror_reflec="mirror_coating_unity.txt", R_d=0, size_file="ref_design_breaks.txt")
+* 
+* %Parameters
+* Input parameters:
+* radius_m: [m]  Ring radius of the upper (reflecting) plate of the pore at the intersection with the parabolic section.
+* radius_h: [m]  Ring radius of the upper (reflecting) plate of the pore at the edge closest to the focal point.
+* yheight: [m] Height of the pore. (Thus the inner radius is radius_{m,h}-yheight
+* chamferwidth: [m] Width of side walls.
+* gap: [m] gap between intersection with parabolic section and actual plate.
+* Z0: [m] distance between intersection plane and the focal spot( essentially the focal length).  
+* mirror_reflec: [ ] Data file containing reflectivities of the reflector surface (TOP).
+* side_reflec: [ ]   Data file containing reflectivities of the side walls (LEFT and RIGHT).
+* bottom_reflec: [ ]  Data file containing reflectivities of the bottom surface (BOTTOM).
+* R_d: [ ] Default reflectivity value to use if no reflectivity file is given. Useful f.i. is one surface is reflecting and the others absorbing.
+* waviness: [rad] Waviness of the pore reflecting surface. The slope error is assumed to be uniformly distributed in the interval [-waviness:waviness].
+* longw:    [ ] If non-zero, waviness is 1D and along the pore axis.
+* %End
+*******************************************************************************/
+
+DEFINE COMPONENT Ring_h
+SETTING PARAMETERS (int ring_nr, pore_th, Z0, yheight, chamferwidth=0, gap=0, zdepth=0, string mirror_reflec="", string bottom_reflec="", string size_file="", R_d=1, waviness=0, longw=0)
+
+SHARE
+%{
+%include "read_table-lib"
+#ifndef MCSPO_INTERSECT_HYPERBOLOID
+#define MCSPO_INTERSECT_HYPERBOLOID 1
+    int intersect_hyperboloid(double *l0, double x, double y, double z, double kx, double ky, double kz, double Z0, double radius, double *nx, double *ny, double *nz){
+        double alpha,thetap,thetah,P,d,e,C0;
+        alpha=0.25*atan(radius/Z0);
+        thetap=alpha;
+        thetah=alpha*3;
+        P=Z0*tan(4*alpha)*tan(thetap);
+        d=Z0*tan(4*alpha)*tan(4*alpha-thetah);
+        e=cos(4*alpha)*(1+tan(4*alpha)*tan(thetah));
+        C0=4*e*e*P*d/(e*e-1);
+
+        double kxn=kx,kyn=ky,kzn=kz;
+        NORM(kxn,kyn,kzn);
+        double A,B,C,Z;
+        Z=Z0-z;
+        /* A=kxn*kxn + kyn*kyn + kzn*kzn - e^2 kzn*kzn = 1 - e^2 kzn^2*/
+        A=1-e*e*kzn*kzn;
+        B=2*kxn*x + 2*kyn*y+ 2*e*e*(d+Z)*kzn - 2*kzn*(Z);
+        C=x*x + y*y + Z*Z - e*e*(d+Z)*(d+Z);
+
+        int status;
+        double l1;
+        if ( (status=solve_2nd_order(l0,&l1,A,B,C))==0 ){
+            /*note that if l1->NULL only the smallest positive solution is returned*/
+            /*fprintf(stderr,"Ring_h: No solution %g %g %g  %g %g %g\n ",x,y,z, kx,ky,kz);*/
+            return status;
+        }
+        /*compute normal vector*/
+        x+=kxn* (*l0);
+        y+=kyn* (*l0);
+        z+=kzn* (*l0);
+
+        Z=Z0-z;
+        double delta_y=-0.5 * pow( e*e*(d+Z)*(d+Z) - Z*Z,-0.5) * ( 2*e*e*(d+Z) - 2*Z);
+        double rh=sqrt(e*e * (d+Z0-z)*(d+Z0-z) -(Z0-z)*(Z0-z));
+
+        /* The tilt of the normal vector perpendicular to the optical axis
+         * depends only on the displacement in x*/
+        *nx=x/rh;
+        *ny=y/rh;
+        *nz = 0 - delta_y + 0;
+        /* the minus sign since a negative slope in rh results in the normal tilting "forward" which
+           corresponds to a positive sign in z*/
+        NORM(*nx,*ny,*nz);
+        return status;
+    }
+#endif
+  int hit_h = 0;
+%}
+
+DECLARE
+%{
+    double nExit[3];
+    double wExit[3];
+    double nEntry[3];
+    double wEntry[3];
+    double nTop[3];
+    double nBottom[3];
+    double radius_m;
+    double radius_h;
+    double e_min[2];
+    double e_step[2];
+    double e_max[2];
+    double theta_min[2];
+    double theta_step[2];
+    double theta_max[2];
+
+    double zexit;
+    double *zexit_vec;
+
+    t_Table reflec_top_table;
+    t_Table reflec_bottom_table;
+    t_Table size_table;
+%}
+
+INITIALIZE
+%{
+    /*read data from files into tables using read_table-lib*/
+    char *filenames[2]={mirror_reflec,bottom_reflec};
+    t_Table *ref_tables[2]={&reflec_top_table,&reflec_bottom_table};
+    int i;
+
+    /*read data from files into tables using read_table-lib*/
+    for (i=0;i<2;i++){
+        char *reflec=filenames[i];
+        t_Table *tp=ref_tables[i];
+        if (reflec && strlen(reflec)) {
+            char **header_parsed;
+            /* read 1st block data from file into tp */
+            if (Table_Read(tp, reflec, 1) <= 0)
+            {
+                exit(fprintf(stderr,"Error(%s): can not read file %s\n",NAME_CURRENT_COMP, reflec));
+            }
+            header_parsed = Table_ParseHeader(tp->header,
+                    "e_min=","e_max=","e_step=","theta_min=","theta_max=","theta_step=",NULL);
+            if (header_parsed[0] && header_parsed[1] && header_parsed[2] &&
+                    header_parsed[3] && header_parsed[4] && header_parsed[5])
+            {
+                e_min[i]=strtod(header_parsed[0],NULL);
+                e_max[i]=strtod(header_parsed[1],NULL);
+                e_step[i]=strtod(header_parsed[2],NULL);
+                theta_min[i]=strtod(header_parsed[3],NULL);
+                theta_max[i]=strtod(header_parsed[4],NULL);
+                theta_step[i]=strtod(header_parsed[5],NULL);
+            } else {
+                exit(fprintf(stderr,"Error (%s): wrong/missing header line(s) in file %s\n", NAME_CURRENT_COMP, reflec));
+            }
+            if (!((int)(e_max[i]-e_min[i]) == (int)((tp->rows-1)*e_step[i])))
+            {
+                exit(fprintf(stderr,"Error (%s): e_step does not match e_min and e_max in file %s\n",NAME_CURRENT_COMP, reflec));
+            }
+            if (!((int)(theta_max[i]-theta_min[i]) == (int)((tp->columns-1)*theta_step[i])))
+            {
+                exit(fprintf(stderr,"Error (%s): theta_step does not match theta_min and theta_max in file %s\n",NAME_CURRENT_COMP, reflec));
+            }
+        }else{
+            /*mark the table as unread by setting "rows" to -1
+              This will trigger the default reflectivity.*/
+            tp->rows=-1;
+        }
+    }
+
+    /* Read table with the individual shell size parameters */
+
+    if(size_file){
+    	if (Table_Read(&(size_table), size_file, ring_nr) <=0)
+    	  exit(fprintf(stderr, "Error (%s): Could not read %s. Aborting.\n",NAME_CURRENT_COMP, size_file));
+    }
+
+    zexit_vec=calloc(size_table.rows,sizeof(double));
+
+    double alpha,thetap,thetah,P,d,e,C0;
+    /*There are in general 68 reflecting planes*/ 
+    for (i=0;i<size_table.rows;i++){
+
+        radius_m = Table_Index(size_table,i,3);
+        radius_h = Table_Index(size_table,i,2);
+
+        /* compute some pore parameters for the parabolic or hyperbolic equations*/
+        /* the z coordinate of the entry plane*/
+
+        /*assuming the parameter xi==1*/
+        alpha=0.25*atan(radius_m/Z0);
+        thetap=alpha;
+        thetah=alpha*3;
+        P=Z0*tan(4*alpha)*tan(thetap);
+        d=Z0*tan(4*alpha)*tan(4*alpha-thetah);
+        e=cos(4*alpha)*(1+tan(4*alpha)*tan(thetah));
+        C0=4*e*e*P*d/(e*e-1);
+
+        /*now solve to get the z-coordinate of the exit plane, assuming radius_m to be bigger.
+          from v. speybroeck and Chase: rh^2 = e^2 (d+Z)^2 - Z^2, where z_{mcxtrace}=Z0-Z, since we assume z=0 at the entry of the pore*/
+        double A,B,C;
+        A=e*e-1;
+        B=2*d*e*e;
+        C=e*e*d*d -radius_h*radius_h;
+        int status=solve_2nd_order(&zexit,NULL,A,B,C);
+        if(zexit<0 || !status){
+            fprintf(stderr,"couldn't figure out the length of the hyperbolic_pore\n");
+            exit(-1);
+        }
+    
+        /*go to mcxtrace coordinate*/
+        zexit=Z0-zexit;
+
+        zexit_vec[i] = zexit;
+    }
+
+    nEntry[0]=0;
+    nEntry[1]=0;
+    nEntry[2]=1;
+    wEntry[0]=wEntry[1]=wEntry[2]=0;
+
+    nExit[0]=0;
+    nExit[1]=0;
+    nExit[2]=1;
+    wExit[0]=wExit[1]=0;wExit[2]=zexit;
+%}
+
+TRACE
+%{
+    double r_m_min,r_m_max,r2;
+    int hit=0;
+    int hit_chamfer=0;
+
+    /*assuming the table to be sorted*/
+    ALLOW_BACKPROP;
+    PROP_Z0;
+    
+    r_m_min = Table_Index(size_table,0,3);
+    r_m_max = Table_Index(size_table,size_table.rows-1,3);
+    r2 = (x*x + y*y);
+
+    /*TODO this should also check for plate width*/
+    hit = ( ( r2 > ( r_m_min-yheight )*( r_m_min-yheight ) ) && ( r2 < ( r_m_max + pore_th )*( r_m_max + pore_th ) ) );
+    if (hit){
+        /*we have a chance of hitting a ring - we might still miss due to beam divergence though*/
+        hit=0;
+        int ii=0;
+        int hit_chamfer;
+
+        while( !hit && ii<size_table.rows){
+            radius_m = Table_Index(size_table,ii,3);
+            radius_h = Table_Index(size_table,ii,2);
+
+            hit= ( ( x*x + y*y < radius_m*radius_m ) && ( x*x + y*y >(radius_m-yheight)*(radius_m-yheight) ) ) ;
+            ii++;
+        }
+        /*ii-1 is now the numbeer of the hit plate - unless it is outside all of them,
+          radius_p and radius_m are the relevant radii for this plate.*/ 
+
+        /*TODO figure out which pore we are at and set the side walls accordingly*/ 
+        hit_chamfer=0;
+
+        enum {LEFT, RIGHT, TOP, BOTTOM, EXIT, NONE} wall;
+        t_Table *reflec_table=NULL;
+        double R;
+
+        if(hit){
+            SCATTER;
+            int exit=0;
+            int intersections[5];
+            int i_small; 
+            double l[5];
+            double l_small;
+
+            double nx,ny,nz;
+            int prm_idx;
+
+            while (!exit){
+                l_small=DBL_MAX;
+                wall=NONE;
+                double nx,ny,nz;
+                double wx,wy,wz;
+                /*exit plane*/
+                intersections[EXIT]=plane_intersect(l+EXIT,x,y,z,kx,ky,kz,nExit[0],nExit[1],nExit[2],wExit[0],wExit[1],zexit_vec[ii-1]);
+                if (intersections[EXIT] && l[EXIT]>DBL_EPSILON && l[EXIT]<l_small) {l_small=l[EXIT];i_small=intersections[EXIT];wall=EXIT;}
+                /*top surface - the real reflecting surface*/
+                intersections[TOP]=intersect_hyperboloid((l+TOP),x,y,z,kx,ky,kz,Z0,radius_m,&(nTop[0]),&(nTop[1]),&(nTop[2]));
+                if (intersections[TOP] && l[TOP]>DBL_EPSILON && l[TOP]<l_small) {l_small=l[TOP];i_small=intersections[TOP];wall=TOP;}
+                /*bottom surface*/
+                intersections[BOTTOM]=intersect_hyperboloid((l+BOTTOM),x,y,z,kx,ky,kz,Z0,radius_m-yheight,&(nBottom[0]),&(nBottom[1]),&(nBottom[2]));
+                if (intersections[BOTTOM] && l[BOTTOM]>DBL_EPSILON && l[BOTTOM]<l_small) {l_small=l[BOTTOM];i_small=intersections[BOTTOM];wall=BOTTOM;}
+
+                /*sort intersections ot find the smallest positive one*/
+                switch (wall){
+                    case TOP:
+                        /*handle top wall reflection*/
+                        reflec_table=&reflec_top_table;
+                        nx=nTop[0];ny=nTop[1];nz=nTop[2];
+                        prm_idx=0;
+                        break;
+                    case BOTTOM:
+                        /*handle bottom wall "reflection"*/
+                        reflec_table=&reflec_bottom_table;
+                        nx=nBottom[0];ny=nBottom[1];nz=nBottom[2];
+                        prm_idx=1;
+                        break;
+                    case EXIT:
+                        /*photon will exit pore*/
+                        exit=1;
+                        break;
+                }
+                if(exit){
+                    continue;
+                }
+
+                PROP_DL(l_small);
+
+                double kix=kx,kiy=ky,kiz=kz;
+                double k=sqrt(kx*kx+ ky*ky + kz*kz);
+                double e=K2E*k;
+                double s=scalar_prod(kx,ky,kz,nx,ny,nz);
+                double theta=RAD2DEG*(M_PI_2-acos(s/k)); /*pi_2 since theta is supposed to be the grazing angle*/
+
+                /*if we have waviness alter the normal vector slightly*/
+                if(waviness!=0){
+                    /*assuming theta to be small we might disregard atan*/
+                    if(longw){
+                        double dtheta;
+                        if(theta<waviness){
+                            dtheta=rand01()*(theta+waviness)-theta;
+                        }else{
+                            dtheta=randpm1()*waviness;
+                        }
+                        double tx,ty,tz;
+                        vec_prod(tx,ty,tz,0,0,1,nx,ny,nz);
+                        rotate(nx,ny,nz, nx,ny,nz, dtheta, tx,ty,tz);
+                    }else{
+                        /*waviness is also transversal but isotropic*/
+                        double radius;
+                        if(theta<waviness){
+                            radius=atan(waviness);
+                            randvec_target_circle(&nx,&ny,&nz,NULL,nx,ny,nx,radius);
+                        }else{
+                            radius=(atan(theta)+atan(waviness))/2.0;
+                            randvec_target_circle(&nx,&ny,&nz,NULL,nx,ny,nx+radius-atan(theta),radius);
+                        }
+                        NORM(nx,ny,nz);
+                    }/*reflect the photon through the surface normal*/
+                    /*recompute theta*/
+                    theta=RAD2DEG*0.5*acos(scalar_prod(kx,ky,kz,kix,kiy,kiz)/k/k);
+                }
+                /*reflect the photon through the surface normal*/
+                if(s!=0){
+                    kx-=2*s*nx;
+                    ky-=2*s*ny;
+                    kz-=2*s*nz;
+                }
+                SCATTER;
+
+                if(reflec_table==NULL || reflec_table->rows==-1){
+                    R=R_d;
+                }else{
+                    R=Table_Value2d(*reflec_table,(e-e_min[prm_idx])/e_step[prm_idx], (theta-theta_min[prm_idx])/theta_step[prm_idx]);
+                }
+                p*=R;
+            }
+        }else if (hit_chamfer){
+            ABSORB;
+        }else{
+            /*no hit*/
+            ABSORB;
+        }
+    }
+%}
+
+FINALLY
+%{
+    free(zexit_vec);
+%}
+
+MCDISPLAY
+%{
+    circle("xy",0,0,0,radius_m);
+    circle("xy",0,0,0,radius_m-yheight);
+
+    circle("xy",0,0,zexit,radius_h);
+    circle("xy",0,0,zexit,radius_h-yheight);    
+%}
+
+END
