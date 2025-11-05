@@ -28,19 +28,8 @@ export async function setMcStasPath() {
 }
 
 export async function activateComponentViewer(context: vscode.ExtensionContext) {
-	let rootPath = vscode.workspace.getConfiguration().get<string>('componentViewer.rootPath');
-
-	if (!rootPath) {
-		rootPath = await askUserForPath();
-
-		if (rootPath) {
-			await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
-		} else {
-			vscode.window.showWarningMessage('No path selected for Component Viewer.');
-			return;
-		}
-	}
-
+	let rootPath = context.asAbsolutePath('McCode/mcstas-comps');
+	
 	vscode.window.registerTreeDataProvider(
 		'Component_viewer',
 		new ComponentProvider(rootPath)

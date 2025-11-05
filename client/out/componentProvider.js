@@ -30,17 +30,7 @@ async function setMcStasPath() {
     }
 }
 async function activateComponentViewer(context) {
-    let rootPath = vscode.workspace.getConfiguration().get('componentViewer.rootPath');
-    if (!rootPath) {
-        rootPath = await askUserForPath();
-        if (rootPath) {
-            await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
-        }
-        else {
-            vscode.window.showWarningMessage('No path selected for Component Viewer.');
-            return;
-        }
-    }
+    let rootPath = context.asAbsolutePath('McCode/mcstas-comps');
     vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(rootPath));
 }
 class ComponentProvider {
