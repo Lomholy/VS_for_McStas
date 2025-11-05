@@ -9,12 +9,41 @@ import {looksLikeFunctionPrototype,
         removeTopLevelInitializer,
         extractIdentifierFromDeclarator
 } from "./parse_helpers";
+namespace CompletionItemKind {
+	export const Text = 1;
+	export const Method = 2;
+	export const Function = 3;
+	export const Constructor = 4;
+	export const Field = 5;
+	export const Variable = 6;
+	export const Class = 7;
+	export const Interface = 8;
+	export const Module = 9;
+	export const Property = 10;
+	export const Unit = 11;
+	export const Value = 12;
+	export const Enum = 13;
+	export const Keyword = 14;
+	export const Snippet = 15;
+	export const Color = 16;
+	export const File = 17;
+	export const Reference = 18;
+	export const Folder = 19;
+	export const EnumMember = 20;
+	export const Constant = 21;
+	export const Struct = 22;
+	export const Event = 23;
+	export const Operator = 24;
+	export const TypeParameter = 25;
+}
 
 type CompletionItem = {
     label: string;
     detail: string;
-    documentation: string;
+    documentation?: string;
     insertText?: string;
+    insertTextFormat?: number;
+    kind?: number;
 };
 
 interface CompletionList {
@@ -99,13 +128,14 @@ export function getInputParameters(content: string): string[] {
 }
 
 export function getDeclaredVariables(content: string): string[] {
-  const declBlocks = [...content.matchAll(/DECLARE\s*%\{([\s\S]*?)\}%/g)];
+  const declBlocks = [...content.matchAll(/DECLARE\s*%\{([\s\S]*?)%\}/g)];
   const vars: string[] = [];
-
+  log.write(declBlocks);
   for (const m of declBlocks) {
     const block = m[1];
     const clean = stripCommentsAndStrings(block);
     const stmts = splitTopLevelBy(clean, ';');
+
 
     for (let stmt of stmts) {
       stmt = stmt.trim();
@@ -284,7 +314,8 @@ export const completion = (message: RequestMessage): CompletionList | null => {
         aggregated.push({
           label: key,
           detail: `${key} is a parameter for ${componentType}`,
-          documentation: parmComment
+          documentation: parmComment,
+          kind: 10
         });
       });
     }
@@ -306,16 +337,13 @@ export const completion = (message: RequestMessage): CompletionList | null => {
         const cat = value.category;
         const highlight = key +" From Category: " + cat ;
         let parmFlag = 0;
-        let insertString = `COMPONENT my_component = ${key}(\n`
+        let insertString = "COMPONENT $0 = "+ key + "(\n";
 
         let doc_string = "";
         value.parameter_names.forEach(function(name) {
           const parmType = value.parameter_types[name];
           const unit = value.parameter_units[name];
           const defaultVal = value.parameter_defaults[name];
-          if (name === "Source_Maxwell_3"){
-            log.write(defaultVal);
-          }
           if (defaultVal === null){
             insertString += `    ${name} = ,\n`
             parmFlag = 1;
@@ -331,7 +359,9 @@ export const completion = (message: RequestMessage): CompletionList | null => {
            label,
            detail: highlight,
            documentation: doc_string,
-           insertText: insertString
+           insertText: insertString,
+           insertTextFormat: 2,
+           kind: 15
          });
       }
       catch{
@@ -351,22 +381,22 @@ export const completion = (message: RequestMessage): CompletionList | null => {
 
 
   // 3) DECLARE variables
-  if (!inComponentBlock)
+
   for (const v of declaredVariables) {
     aggregated.push({
       label: v,
-        detail: "variable",
-      documentation: "Declared in DECLARE%{ … }% block"
+        detail: "Parameter from DECLARE section",
+      kind: 6
     });
   }
   
   // 4) DEFINE INSTRUMENT parameters
-  if (!inComponentBlock)
+
   for (const p of inputParameters) {
     aggregated.push({
       label: p,
-      detail: "parameter",
-      documentation: "Parameter from DEFINE INSTRUMENT( … )"
+      detail: "INSTRUMENT input parameter",
+      kind: 6
     });
   }
 

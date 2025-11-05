@@ -7,6 +7,34 @@ const FuzzySearch = require("fuzzy-search");
 const documents_1 = require("../../documents");
 const log_1 = require("../../log");
 const parse_helpers_1 = require("./parse_helpers");
+var CompletionItemKind;
+(function (CompletionItemKind) {
+    CompletionItemKind.Text = 1;
+    CompletionItemKind.Method = 2;
+    CompletionItemKind.Function = 3;
+    CompletionItemKind.Constructor = 4;
+    CompletionItemKind.Field = 5;
+    CompletionItemKind.Variable = 6;
+    CompletionItemKind.Class = 7;
+    CompletionItemKind.Interface = 8;
+    CompletionItemKind.Module = 9;
+    CompletionItemKind.Property = 10;
+    CompletionItemKind.Unit = 11;
+    CompletionItemKind.Value = 12;
+    CompletionItemKind.Enum = 13;
+    CompletionItemKind.Keyword = 14;
+    CompletionItemKind.Snippet = 15;
+    CompletionItemKind.Color = 16;
+    CompletionItemKind.File = 17;
+    CompletionItemKind.Reference = 18;
+    CompletionItemKind.Folder = 19;
+    CompletionItemKind.EnumMember = 20;
+    CompletionItemKind.Constant = 21;
+    CompletionItemKind.Struct = 22;
+    CompletionItemKind.Event = 23;
+    CompletionItemKind.Operator = 24;
+    CompletionItemKind.TypeParameter = 25;
+})(CompletionItemKind || (CompletionItemKind = {}));
 ;
 /* ----------- Base suggestions (with default metadata) ----------- */
 const baseSuggestions = [
@@ -49,8 +77,9 @@ function getInputParameters(content) {
     return Array.from(new Set(params));
 }
 function getDeclaredVariables(content) {
-    const declBlocks = [...content.matchAll(/DECLARE\s*%\{([\s\S]*?)\}%/g)];
+    const declBlocks = [...content.matchAll(/DECLARE\s*%\{([\s\S]*?)%\}/g)];
     const vars = [];
+    log_1.default.write(declBlocks);
     for (const m of declBlocks) {
         const block = m[1];
         const clean = (0, parse_helpers_1.stripCommentsAndStrings)(block);
@@ -190,7 +219,8 @@ const completion = (message) => {
                 aggregated.push({
                     label: key,
                     detail: `${key} is a parameter for ${componentType}`,
-                    documentation: parmComment
+                    documentation: parmComment,
+                    kind: 10
                 });
             });
         }
@@ -207,15 +237,12 @@ const completion = (message) => {
                     const cat = value.category;
                     const highlight = key + " From Category: " + cat;
                     let parmFlag = 0;
-                    let insertString = `COMPONENT my_component = ${key}(\n`;
+                    let insertString = "COMPONENT $0 = " + key + "(\n";
                     let doc_string = "";
                     value.parameter_names.forEach(function (name) {
                         const parmType = value.parameter_types[name];
                         const unit = value.parameter_units[name];
                         const defaultVal = value.parameter_defaults[name];
-                        if (name === "Source_Maxwell_3") {
-                            log_1.default.write(defaultVal);
-                        }
                         if (defaultVal === null) {
                             insertString += `    ${name} = ,\n`;
                             parmFlag = 1;
@@ -231,7 +258,9 @@ const completion = (message) => {
                         label,
                         detail: highlight,
                         documentation: doc_string,
-                        insertText: insertString
+                        insertText: insertString,
+                        insertTextFormat: 2,
+                        kind: 15
                     });
                 }
                 catch {
@@ -249,23 +278,21 @@ const completion = (message) => {
             }
         });
     // 3) DECLARE variables
-    if (!inComponentBlock)
-        for (const v of declaredVariables) {
-            aggregated.push({
-                label: v,
-                detail: "variable",
-                documentation: "Declared in DECLARE%{ … }% block"
-            });
-        }
+    for (const v of declaredVariables) {
+        aggregated.push({
+            label: v,
+            detail: "Parameter from DECLARE section",
+            kind: 6
+        });
+    }
     // 4) DEFINE INSTRUMENT parameters
-    if (!inComponentBlock)
-        for (const p of inputParameters) {
-            aggregated.push({
-                label: p,
-                detail: "parameter",
-                documentation: "Parameter from DEFINE INSTRUMENT( … )"
-            });
-        }
+    for (const p of inputParameters) {
+        aggregated.push({
+            label: p,
+            detail: "INSTRUMENT input parameter",
+            kind: 6
+        });
+    }
     // Dedupe once and merge final custom annotations (your “add at the end” hook)
     let items = mergeCustomAnnotations(dedupeByLabel(aggregated));
     // Compute the query from your existing logic
