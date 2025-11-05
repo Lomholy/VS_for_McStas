@@ -1,4 +1,5 @@
 import { RequestMessage } from "../../server";
+import FuzzySearch = require('fuzzy-search');
 import * as fs from "fs"
 import { documents, TextDocumentIdentifier } from "../../documents";
 import log from '../../log';
@@ -8,7 +9,6 @@ import {looksLikeFunctionPrototype,
         removeTopLevelInitializer,
         extractIdentifierFromDeclarator
 } from "./parse_helpers";
-
 
 type CompletionItem = {
     label: string;
@@ -184,60 +184,6 @@ function mergeCustomAnnotations(items: CompletionItem[]): CompletionItem[] {
 }
 
 
-/* ------------------- Parse component parameter utilities --------------- */
-
-function parsePythonStringList(s: string): string[] | null {
-  const t = s.trim();
-  if (!t.startsWith('[') || !t.endsWith(']')) return null;
-
-  const items: string[] = [];
-  let i = 1;
-  const end = t.length - 1;
-
-  while (i < end) {
-    // skip whitespace/commas
-    while (i < end && /[\s,]/.test(t[i])) i++;
-    if (i >= end) break;
-
-    if (t[i] !== "'") return null; // expect single-quoted string
-    i++; // skip opening quote
-
-    let buf = '';
-    while (i < end) {
-      const c = t[i++];
-      if (c === "\\") {
-        if (i < end) {
-          const e = t[i++];
-          buf += e === "'" ? "'" : e === "\\" ? "\\" : e;
-        }
-      } else if (c === "'") {
-        items.push(buf);
-        break;
-      } else {
-        buf += c;
-      }
-    }
-  }
-  return items.length ? items : null;
-}
-
-
-function toPlainTextDocumentation(doc: unknown): string {
-  if (typeof doc !== 'string') return String(doc ?? '');
-
-  try {
-    const parsed = JSON.parse(doc);
-    if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
-      return parsed.join('\n'); // or '\n\n' for spacing, or bullets
-    }
-  } catch { /* ignore */ }
-
-  const pyList = parsePythonStringList(doc);
-  if (pyList) return pyList.join('\n');
-
-  return doc;
-}
-
 
 /* ---------------- Main completion (async) ---------------- */
 
@@ -345,10 +291,34 @@ export const completion = (message: RequestMessage): CompletionList | null => {
   // Dedupe once and merge final custom annotations (your “add at the end” hook)
   let items = mergeCustomAnnotations(dedupeByLabel(aggregated));
 
-  // Filter by typed prefix and cap list
-  items = items
-    .filter(it => it.label.startsWith(currentPrefix))
-    .slice(0, 500);
+  // Compute the query from your existing logic
+  const query = (currentPrefix ?? '').trim();
+
+  // If there is a user-typed prefix, fuzzy search; otherwise return defaults
+  if (query.length >= 1) {
+    // Search primarily in 'label', and also in 'detail' for extra context hits.
+    // Add 'documentation' to the array if you want very broad matches (can be noisy).
+    const searcher = new FuzzySearch(items, ['label', 'detail'], {
+      caseSensitive: false,
+      sort: true, // sorts best matches first
+    });
+
+    const results = searcher.search(query);
+
+    // Map back to CompletionItems, keep fields, and add stable sortText
+    items = results.slice(0, 500).map((it, idx) => ({
+      ...it,
+      // Ensure the editor doesn't re-filter strictly by label
+      filterText: it.label,
+      // Put best matches first; since fuzzy-search already sorts, we just encode idx
+      sortText: String(idx).padStart(6, '0'),
+      // Nice-to-have: preselect the top candidate
+      preselect: idx === 0,
+    }));
+  } else {
+    // No query → deliver the first 500 items (or your preferred default ordering)
+    items = items.slice(0, 500);
+  }
 
 
   log.write({completion: currentLine, lineUntilCursor, currentPrefix, items: items});

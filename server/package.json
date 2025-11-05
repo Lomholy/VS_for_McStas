@@ -12,6 +12,9 @@
     "url": "REPLACE_ME"
   },
   "dependencies": {
-
+    "fuzzy-search": "^3.2.1"
+  },
+  "devDependencies": {
+    "@types/fuzzy-search": "^2.1.5"
   }
 }
