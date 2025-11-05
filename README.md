@@ -45,3 +45,8 @@ flask and mcstas installed.
 ### 2.0.1 
 
 Fix of server break on multiple instances of vs code active
+
+### 2.0.2
+
+Move cursor to end at component name when component is inserted.
+Also fix error in declare section regex.
