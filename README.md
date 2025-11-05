@@ -34,3 +34,14 @@ Fix comp_parser lying in src instead of media
 ### 1.2.2
 
 Update readme to include the most recent developments.
+
+
+### 2.0.0
+
+Addition of language server, that allows for autocompletion in text.
+From now on the extension relies on the user having a conda environment with 
+flask and mcstas installed.
+
+### 2.0.1 
+
+Fix of server break on multiple instances of vs code active
