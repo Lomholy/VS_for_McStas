@@ -185,12 +185,67 @@ function mergeCustomAnnotations(items: CompletionItem[]): CompletionItem[] {
 
 
 
+
+
+
+
+
 /* ---------------- Main completion (async) ---------------- */
 
 
 
 export interface CompletionParams extends TextDocumentPositionParams {}
 
+function getComponentContext(
+  content: string,
+  params: CompletionParams
+): { inComponentBlock: boolean; componentType: string | null } {
+  // Convert LSP position (line, character) to absolute offset in content
+  const lines = content.split("\n");
+  let offset = 0;
+  for (let i = 0; i < params.position.line; i++) {
+    offset += lines[i].length + 1; // +1 for '\n'
+  }
+  offset += params.position.character;
+
+  // One regex to capture type (group 1) and args (group 2)
+  // - COMPONENT ... = (capture type) ( capture args )
+  const re = /COMPONENT[\s\S]*?=([\s\S]*?)\(([\s\S]*?)\)/g;
+
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content))) {
+    const matchStart = m.index;
+    const full = m[0];
+
+    // Where is the '(' relative to the match?
+    const openRel = full.indexOf('(');
+    if (openRel < 0) continue;
+
+    const argsText = m[2] ?? '';
+    const argsStart = matchStart + openRel + 1;           // first char inside '('
+    const argsEnd = argsStart + argsText.length;          // first char AFTER last arg char
+
+    // Is cursor inside the parentheses?
+    if (offset >= argsStart && offset <= argsEnd) {
+      const rawType = (m[1] ?? '').trim();
+
+      // Minimal “clean” type extraction:
+      // pick the last identifier-looking token before '(' (handles "ns::Type", "Type", "Type /*comment*/")
+      const cleanedType = rawType
+        // strip inline comments (very rough)
+        .replace(/\/\/.*|#.*|\/\*[\s\S]*?\*\//g, '')
+        .trim();
+
+      // Take the last identifier-ish token (letters, digits, underscore, colon, dot)
+      const typeMatch = cleanedType.match(/[A-Za-z_][\w:.]*\s*$/);
+      const componentType = (typeMatch ? typeMatch[0] : cleanedType).trim();
+
+      return { inComponentBlock: true, componentType };
+    }
+  }
+
+  return { inComponentBlock: false, componentType: null };
+}
 
 export const completion = (message: RequestMessage): CompletionList | null => {
 
@@ -211,12 +266,37 @@ export const completion = (message: RequestMessage): CompletionList | null => {
   const declaredVariables = getDeclaredVariables(content)
   const inputParameters = getInputParameters(content);
 
+  const { inComponentBlock, componentType } = getComponentContext(content, params);
   const aggregated: CompletionItem[] = [];
+  // Example: log or branch logic
+  log.write({ inComponentBlock });
+
+  if (inComponentBlock) {
+    // fetch component parameters
+    log.write(componentType);
+    if (componentType !== null){
+      let name: string;
+      components[componentType].parameter_names.forEach(function(key) {
+        const parmType = components[componentType].parameter_types[key]
+        const parmComment = components[componentType].parameter_comments[key]
+
+        aggregated.push({
+          label: key,
+          detail: `${key} is a parameter for ${componentType}`,
+          documentation: parmComment
+        });
+      });
+    }
+  }
+
+
+
   // 1) Base commands COMPONENT etc.
   aggregated.push(...baseSuggestions);
 
 
   // 2) Components from the service
+  if (!inComponentBlock)
   Object.keys(components).forEach(function(key) {
     const value = components[key];
     let label = key;
@@ -270,6 +350,7 @@ export const completion = (message: RequestMessage): CompletionList | null => {
 
 
   // 3) DECLARE variables
+  if (!inComponentBlock)
   for (const v of declaredVariables) {
     aggregated.push({
       label: v,
@@ -279,6 +360,7 @@ export const completion = (message: RequestMessage): CompletionList | null => {
   }
   
   // 4) DEFINE INSTRUMENT parameters
+  if (!inComponentBlock)
   for (const p of inputParameters) {
     aggregated.push({
       label: p,

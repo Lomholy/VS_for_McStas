@@ -123,6 +123,45 @@ function mergeCustomAnnotations(items) {
         return extra ? { ...it, ...extra } : it;
     });
 }
+function getComponentContext(content, params) {
+    // Convert LSP position (line, character) to absolute offset in content
+    const lines = content.split("\n");
+    let offset = 0;
+    for (let i = 0; i < params.position.line; i++) {
+        offset += lines[i].length + 1; // +1 for '\n'
+    }
+    offset += params.position.character;
+    // One regex to capture type (group 1) and args (group 2)
+    // - COMPONENT ... = (capture type) ( capture args )
+    const re = /COMPONENT[\s\S]*?=([\s\S]*?)\(([\s\S]*?)\)/g;
+    let m;
+    while ((m = re.exec(content))) {
+        const matchStart = m.index;
+        const full = m[0];
+        // Where is the '(' relative to the match?
+        const openRel = full.indexOf('(');
+        if (openRel < 0)
+            continue;
+        const argsText = m[2] ?? '';
+        const argsStart = matchStart + openRel + 1; // first char inside '('
+        const argsEnd = argsStart + argsText.length; // first char AFTER last arg char
+        // Is cursor inside the parentheses?
+        if (offset >= argsStart && offset <= argsEnd) {
+            const rawType = (m[1] ?? '').trim();
+            // Minimal “clean” type extraction:
+            // pick the last identifier-looking token before '(' (handles "ns::Type", "Type", "Type /*comment*/")
+            const cleanedType = rawType
+                // strip inline comments (very rough)
+                .replace(/\/\/.*|#.*|\/\*[\s\S]*?\*\//g, '')
+                .trim();
+            // Take the last identifier-ish token (letters, digits, underscore, colon, dot)
+            const typeMatch = cleanedType.match(/[A-Za-z_][\w:.]*\s*$/);
+            const componentType = (typeMatch ? typeMatch[0] : cleanedType).trim();
+            return { inComponentBlock: true, componentType };
+        }
+    }
+    return { inComponentBlock: false, componentType: null };
+}
 const completion = (message) => {
     ensureComponentsLoaded();
     const params = message.params;
@@ -135,75 +174,97 @@ const completion = (message) => {
     const currentPrefix = lineUntilCursor.replace(/.*\W(.*?)/, "$1");
     const declaredVariables = getDeclaredVariables(content);
     const inputParameters = getInputParameters(content);
+    const { inComponentBlock, componentType } = getComponentContext(content, params);
     const aggregated = [];
+    // Example: log or branch logic
+    log_1.default.write({ inComponentBlock });
+    if (inComponentBlock) {
+        // fetch component parameters
+        log_1.default.write(componentType);
+        if (componentType !== null) {
+            let name;
+            components[componentType].parameter_names.forEach(function (key) {
+                const parmType = components[componentType].parameter_types[key];
+                const parmComment = components[componentType].parameter_comments[key];
+                aggregated.push({
+                    label: key,
+                    detail: `${key} is a parameter for ${componentType}`,
+                    documentation: parmComment
+                });
+            });
+        }
+    }
     // 1) Base commands COMPONENT etc.
     aggregated.push(...baseSuggestions);
     // 2) Components from the service
-    Object.keys(components).forEach(function (key) {
-        const value = components[key];
-        let label = key;
-        if (value !== undefined) {
-            try {
-                const cat = value.category;
-                const highlight = key + " From Category: " + cat;
-                let parmFlag = 0;
-                let insertString = `COMPONENT my_component = ${key}(\n`;
-                let doc_string = "";
-                value.parameter_names.forEach(function (name) {
-                    const parmType = value.parameter_types[name];
-                    const unit = value.parameter_units[name];
-                    const defaultVal = value.parameter_defaults[name];
-                    if (name === "Source_Maxwell_3") {
-                        log_1.default.write(defaultVal);
+    if (!inComponentBlock)
+        Object.keys(components).forEach(function (key) {
+            const value = components[key];
+            let label = key;
+            if (value !== undefined) {
+                try {
+                    const cat = value.category;
+                    const highlight = key + " From Category: " + cat;
+                    let parmFlag = 0;
+                    let insertString = `COMPONENT my_component = ${key}(\n`;
+                    let doc_string = "";
+                    value.parameter_names.forEach(function (name) {
+                        const parmType = value.parameter_types[name];
+                        const unit = value.parameter_units[name];
+                        const defaultVal = value.parameter_defaults[name];
+                        if (name === "Source_Maxwell_3") {
+                            log_1.default.write(defaultVal);
+                        }
+                        if (defaultVal === null) {
+                            insertString += `    ${name} = ,\n`;
+                            parmFlag = 1;
+                        }
+                        const comment = value.parameter_comments[name];
+                        doc_string += `${parmType} ${name} [${unit}] = ${defaultVal} | ${comment} \n\n`;
+                    });
+                    if (parmFlag === 1) {
+                        insertString = insertString.substring(0, insertString.length - 2);
                     }
-                    if (defaultVal === null) {
-                        insertString += `    ${name} = ,\n`;
-                        parmFlag = 1;
-                    }
-                    const comment = value.parameter_comments[name];
-                    doc_string += `${parmType} ${name} [${unit}] = ${defaultVal} | ${comment} \n\n`;
-                });
-                if (parmFlag === 1) {
-                    insertString = insertString.substring(0, insertString.length - 2);
+                    insertString += `\n)\nAT (0,0,0) RELATIVE PREVIOUS\n`;
+                    aggregated.push({
+                        label,
+                        detail: highlight,
+                        documentation: doc_string,
+                        insertText: insertString
+                    });
                 }
-                insertString += `\n)\nAT (0,0,0) RELATIVE PREVIOUS\n`;
-                aggregated.push({
-                    label,
-                    detail: highlight,
-                    documentation: doc_string,
-                    insertText: insertString
-                });
+                catch {
+                    aggregated.push({
+                        label,
+                        detail: "McStas Component. Parsing unsuccessfull",
+                        documentation: "Missing documentation for now"
+                    });
+                    log_1.default.write("Log didn't work");
+                    log_1.default.write(JSON.stringify(value, null, 2));
+                }
             }
-            catch {
-                aggregated.push({
-                    label,
-                    detail: "McStas Component. Parsing unsuccessfull",
-                    documentation: "Missing documentation for now"
-                });
-                log_1.default.write("Log didn't work");
-                log_1.default.write(JSON.stringify(value, null, 2));
+            else {
+                log_1.default.write('[undefined]');
             }
-        }
-        else {
-            log_1.default.write('[undefined]');
-        }
-    });
+        });
     // 3) DECLARE variables
-    for (const v of declaredVariables) {
-        aggregated.push({
-            label: v,
-            detail: "variable",
-            documentation: "Declared in DECLARE%{ … }% block"
-        });
-    }
+    if (!inComponentBlock)
+        for (const v of declaredVariables) {
+            aggregated.push({
+                label: v,
+                detail: "variable",
+                documentation: "Declared in DECLARE%{ … }% block"
+            });
+        }
     // 4) DEFINE INSTRUMENT parameters
-    for (const p of inputParameters) {
-        aggregated.push({
-            label: p,
-            detail: "parameter",
-            documentation: "Parameter from DEFINE INSTRUMENT( … )"
-        });
-    }
+    if (!inComponentBlock)
+        for (const p of inputParameters) {
+            aggregated.push({
+                label: p,
+                detail: "parameter",
+                documentation: "Parameter from DEFINE INSTRUMENT( … )"
+            });
+        }
     // Dedupe once and merge final custom annotations (your “add at the end” hook)
     let items = mergeCustomAnnotations(dedupeByLabel(aggregated));
     // Compute the query from your existing logic
