@@ -2,7 +2,7 @@
   "name": "vs-for-mcstas",
   "displayName": "VS_for_McStas",
   "description": "VS_for_McStas is an extension that aims to deliver McStas syntax highlighting, as well as GUI component insertion.",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lomholy/VS_for_McStas"
@@ -14,9 +14,11 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": ["onLanguage"],
+  "activationEvents": [
+    "onLanguage"
+  ],
   "main": "./client/out/extension",
- "contributes": {
+  "contributes": {
     "configuration": {
       "title": "Component Viewer",
       "properties": {
@@ -24,7 +26,6 @@
           "type": "string",
           "default": "",
           "description": "The root path for the Component Viewer tree view."
-          
         },
         "componentViewer.condaEnv": {
           "type": "string",
@@ -194,7 +195,7 @@
     "eslint": "^9.23.0",
     "typescript": "^5.8.3"
   },
-    "dependencies": {
+  "dependencies": {
     "vscode-languageclient": "^8.1.0"
   }
 }
