@@ -61,18 +61,24 @@ export function activate(context: vscode.ExtensionContext) {
 	'python',              // interpreter inside that env
 	serverPath             // your Flask entrypoint
 	];
+	try{
+		const flaskProcess: ChildProcessWithoutNullStreams = spawn(condaExe, args, {
+		cwd,
+		env: { ...process.env, FLASK_ENV: 'development' }, // optional
+		shell: process.platform === 'win32', // resolve conda.bat on Windows
+		});	
 
-	const flaskProcess: ChildProcessWithoutNullStreams = spawn(condaExe, args, {
-	cwd,
-	env: { ...process.env, FLASK_ENV: 'development' }, // optional
-	shell: process.platform === 'win32', // resolve conda.bat on Windows
-	});	
-
-	flaskProcess.stdout.on('data', d => console.log(`[flask] ${d.toString()}`));
-	flaskProcess.stderr.on('data', d => console.error(`[flask] ${d.toString()}`));
-	flaskProcess.on('error', err => console.error('Failed to start Flask:', err));
-	flaskProcess.on('exit', (code, signal) => console.log(`Flask exited: code=${code}, signal=${signal}`));
-
+		flaskProcess.stdout.on('data', d => console.log(`[flask] ${d.toString()}`));
+		flaskProcess.stderr.on('data', d => console.error(`[flask] ${d.toString()}`));
+		flaskProcess.on('error', err => console.error('Failed to start Flask:', err));
+		flaskProcess.on('exit', (code, signal) => console.log(`Flask exited: code=${code}, signal=${signal}`));
+	}
+	catch{
+		// Catch is literally just to hope that it is our own flask server
+		
+	}
+		
+	
 	setExtensionRootPath(context.extensionPath);
 	activateComponentViewer(context); // Read the component tree
 	context.subscriptions.push(// Allow user to insert a component
