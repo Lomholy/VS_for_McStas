@@ -1,45 +1,61 @@
-import * as fs from 'fs';
-import * as vscode from 'vscode';
-import { execFile } from 'child_process';
-import * as path from 'path';
-import { ExecFileException } from 'child_process';
-import { extensionRootPath } from './global_params';
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.openCompDialog = openCompDialog;
+const fs = __importStar(require("fs"));
+const vscode = __importStar(require("vscode"));
+const child_process_1 = require("child_process");
+const path = __importStar(require("path"));
+const global_params_1 = require("./global_params");
 const os = require('os');
-export async function openCompDialog(filePath: string) {
+async function openCompDialog(filePath) {
     const comp_json = await runPythonParserAndReadJSON(filePath);
-    const header = comp_json.name
+    const header = comp_json.name;
     const parameters = Object.entries(comp_json.parameter_defaults).map(([name, value]) => ({
-    name,
-    value: String(value)
+        name,
+        value: String(value)
     }));
-    const units = Object.fromEntries(
-    Object.entries(comp_json.parameter_units).map(([name, value]) => [name, String(value)])
-    );
-
-    const comments = Object.fromEntries(
-    Object.entries(comp_json.parameter_comments).map(([name, value]) => [name, String(value)])
-    );
-
-    const panel = vscode.window.createWebviewPanel(
-        'compDialog',
-        'Component Parameters',
-        vscode.ViewColumn.Two,
-        { enableScripts: true,
-            retainContextWhenHidden: true
-         }
-    );
-
+    const units = Object.fromEntries(Object.entries(comp_json.parameter_units).map(([name, value]) => [name, String(value)]));
+    const comments = Object.fromEntries(Object.entries(comp_json.parameter_comments).map(([name, value]) => [name, String(value)]));
+    const panel = vscode.window.createWebviewPanel('compDialog', 'Component Parameters', vscode.ViewColumn.Two, { enableScripts: true,
+        retainContextWhenHidden: true
+    });
     panel.webview.html = getWebviewContent(header, parameters, units, comments);
-
-
-
-
     panel.webview.onDidReceiveMessage((message) => {
         const { command, parameters, oldParameters } = message;
-
-        const original: ComponentParameterInfo[] = message.oldParameters
-
-
+        const original = message.oldParameters;
         if (command === 'submit' || command === 'writeComponent') {
             // Your existing logic
             const instanceName = parameters['instanceName'] || 'my_component';
@@ -47,24 +63,20 @@ export async function openCompDialog(filePath: string) {
             const relativeAT = parameters['relativeAT'] || 'PREVIOUS';
             const rotation = parameters['rotation'] || '0, 0, 0';
             const relativeROT = parameters['relativeROT'] || 'PREVIOUS';
-
             delete parameters['instanceName'];
             delete parameters['position'];
             delete parameters['relativeAT'];
             delete parameters['rotation'];
             delete parameters['relativeROT'];
-            
             const formattedParams = Object.entries(parameters)
-            .filter(([key, val]) => {
-                const oldVal = oldParameters.find((p: ComponentParameterInfo) => p.name === key)?.value;
+                .filter(([key, val]) => {
+                const oldVal = oldParameters.find((p) => p.name === key)?.value;
                 return val !== oldVal;
             })
-            .filter(([_, val]) => val !== undefined && val !== '')
-            .map(([key, val]) => `${key} = ${val}`)
-            .join(',\n    ');
-
+                .filter(([_, val]) => val !== undefined && val !== '')
+                .map(([key, val]) => `${key} = ${val}`)
+                .join(',\n    ');
             const formattedComponent = `COMPONENT ${instanceName} = ${header}(\n    ${formattedParams}\n) AT (${position}) RELATIVE ${relativeAT}\nROTATED (${rotation}) RELATIVE ${relativeROT}`;
-
             panel.webview.html = `
             <html>
                 <body>
@@ -74,54 +86,45 @@ export async function openCompDialog(filePath: string) {
             </html>
             `;
         }
-
         if (command === 'writeMcstasScript') {
             const instanceName = parameters['instanceName'] || 'my_component';
             const componentType = header;
             const relativeAT = parameters['relativeAT'] || 'PREVIOUS';
-            const position = parameters['position']||'[0,0,0]';
-            const rotation = parameters['rotation']||'[0,0,0]';
+            const position = parameters['position'] || '[0,0,0]';
+            const rotation = parameters['rotation'] || '[0,0,0]';
             const relativeROT = parameters['relativeROT'] || 'PREVIOUS';
             const defaultPosition = '[0,0,0]';
             const defaultRotation = '[0,0,0]';
-
             // Remove meta fields from parameter list
             delete parameters['instanceName'];
             delete parameters['position'];
             delete parameters['relativeAT'];
             delete parameters['rotation'];
             delete parameters['relativeROT'];
-            
-
-            const oldParametersMap = Object.fromEntries(
-                oldParameters.map((p: ComponentParameterInfo)=> [p.name, p.value])
-                );
-           const paramEntries = Object.entries(parameters)
+            const oldParametersMap = Object.fromEntries(oldParameters.map((p) => [p.name, p.value]));
+            const paramEntries = Object.entries(parameters)
                 .filter(([key, val]) => {
-                    const defaultVal = oldParametersMap[key];
-                    return val !== undefined && val !== '' && val !== defaultVal;
-                });
-            
+                const defaultVal = oldParametersMap[key];
+                return val !== undefined && val !== '' && val !== defaultVal;
+            });
             const paramLine = paramEntries.length > 0
                 ? `${instanceName}.set_parameters(${paramEntries.map(([k, v]) => `${k}=${v}`).join(', ')})`
                 : ''; // No param line if empty
             let relativeBlock = '';
-
-            if (relativeROT!='PREVIOUS') {
-            relativeBlock = `,AT_RELATIVE="${relativeAT}",\nROTATED_RELATIVE="${relativeROT}"`;
-            } else {
-            relativeBlock = `,RELATIVE="${relativeAT}"`;
+            if (relativeROT != 'PREVIOUS') {
+                relativeBlock = `,AT_RELATIVE="${relativeAT}",\nROTATED_RELATIVE="${relativeROT}"`;
+            }
+            else {
+                relativeBlock = `,RELATIVE="${relativeAT}"`;
             }
             const atLine = position !== defaultPosition ? `,AT=[${position}]` : '';
             const rotatedLine = rotation !== defaultRotation ? `,ROTATED=[${rotation}]` : '';
-
             const scriptOutput = `${instanceName} = instrument.add_component("${instanceName}", 
 "${componentType}"
 ${atLine} ${rotatedLine} ${relativeBlock}
 )
 ${paramLine}
             `;
-
             panel.webview.html = `
                 <html>
                 <body>
@@ -131,12 +134,9 @@ ${paramLine}
                 </html>
             `;
         }
-    }); 
+    });
 }
-
-
-function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
-                         units: { [key: string]: string }, comments: { [key: string]: string }): string {
+function getWebviewContent(header, parameters, units, comments) {
     const oldParameters = JSON.parse(JSON.stringify(parameters));
     return `
         <html>
@@ -275,17 +275,53 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
         </html>
     `;
 }
-
-
-// Types for component parameters
-interface ComponentParameterInfo {
-    name: string;
-    value: string;
-}
-
-async function runPythonParserAndReadJSON(component: string): Promise<any> {
-    const comp_name = component.split("/").pop().split('.')[0];
-    const response = await fetch(`http://127.0.0.1:5000/get_comp/${comp_name}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+// TODO: Make cached results, such that the output doesn't have to be regenerated
+// Every time.
+async function getComponentFromPythonServer(component) {
+    const response = await fetch(`http://127.0.0.1:5000/get_comps/${component}`);
+    if (!response.ok)
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
     return response.json();
 }
+async function runPythonParserAndReadJSON(component) {
+    const result = await getComponentFromPythonServer(component);
+    console.log("Returning component");
+    return result;
+    const mcstasPath = vscode.workspace.getConfiguration().get('componentViewer.rootPath');
+    if (!mcstasPath) {
+        throw new Error("Missing configuration: componentViewer.rootPath");
+    }
+    const pythonScript = path.join(global_params_1.extensionRootPath, 'media/comp_parser.py');
+    const outputPath = path.join(os.tmpdir(), 'comp_dict.json');
+    return new Promise((resolve, reject) => {
+        // Run the Python script
+        (0, child_process_1.execFile)('conda', ['run', '-n', 'mcstas', 'python', pythonScript, component, mcstasPath, outputPath], {}, (error, stdout, stderr) => {
+            if (stdout) {
+                console.log('[Python stdout]', stdout); // Logs printed with print()
+            }
+            if (error) {
+                console.log(`Python script failed: ${error.message}`);
+                return reject(`Python script failed: ${error.message}`);
+            }
+            if (stderr) {
+                console.warn(`Python stderr: ${stderr}`);
+            }
+            // Read the output file
+            fs.readFile(outputPath, { encoding: 'utf-8' }, (err, data) => {
+                if (err) {
+                    console.error(err);
+                    return;
+                }
+                console.log(data); // data is a string
+                try {
+                    const json = JSON.parse(data);
+                    resolve(json); // ✅ Return parsed JSON
+                }
+                catch (parseErr) {
+                    reject(`Failed to parse JSON: ${parseErr}`);
+                }
+            });
+        });
+    });
+}
+//# sourceMappingURL=dialogue.js.map

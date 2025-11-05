@@ -14,6 +14,7 @@ type CompletionItem = {
     label: string;
     detail: string;
     documentation: string;
+    insertText?: string;
 };
 
 interface CompletionList {
@@ -46,7 +47,19 @@ const baseSuggestions: CompletionItem[] = [
  * Components: label -> documentation
  * e.g. { "Motor": "A controllable motor", "Sensor": "Temperature sensor", ... }
  */
-const components: Record<string, string> = {};
+
+type Component = {
+  category: string;
+  name: string;
+  parameter_comments: {[key:string]: string};
+  parameter_defaults:{[key:string]: string};
+  parameter_units: {[key:string]: string};
+  parameter_names: string[];
+  parameter_types: {[key:string]: string};
+  // add other fields as needed
+};
+
+const components: {[key: string]: Component} = {};
 
 /** Optional end-of-pipeline overrides: label -> { detail?, documentation? } */
 const customAnnotations: Record<string, Partial<CompletionItem>> = {
@@ -125,16 +138,29 @@ export function getDeclaredVariables(content: string): string[] {
 
 /* ---------------- Components loader ---------------- */
 
-async function printcomponents(url: string): Promise<Record<string, string>> {
+async function printcomponents(url: string) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
-  return (await response.json()) as Record<string, string>;
+  if (!response.ok) {
+    log.write("Response is not okay");
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+  return response.text();
 }
 
 async function ensureComponentsLoaded() {
   if (Object.keys(components).length === 0) {
-    const data = await printcomponents('http://127.0.0.1:5000/get_all_comps');
-    Object.assign(components, data);      // <-- mutate in place
+    const data1 = await printcomponents('http://127.0.0.1:5000/get_all_comps');
+
+  try {
+     
+    const safeString = data1.replace(/\bNaN\b/g, 'null');
+    const parsed = JSON.parse(safeString);
+    Object.assign(components, parsed);      // <-- mutate in place
+  } catch (e) {
+      console.error("Failed to parse JSON:", e);
+  }
+
+
   }
 }
 
@@ -240,19 +266,63 @@ export const completion = (message: RequestMessage): CompletionList | null => {
   const inputParameters = getInputParameters(content);
 
   const aggregated: CompletionItem[] = [];
-
+  // 1) Base commands COMPONENT etc.
   aggregated.push(...baseSuggestions);
-    
+
+
   // 2) Components from the service
-  for (const [label, doc] of Object.entries(components)) {
-    const documentation = toPlainTextDocumentation(doc).split(",").join("\n");
-    log.write({label,documentation});
-    aggregated.push({
-      label,
-      detail: "McStas Component. Parameters are:",
-      documentation: documentation
-    });
-  };
+  Object.keys(components).forEach(function(key) {
+    const value = components[key];
+    let label = key;
+    if (value !== undefined) {
+      try{
+        const cat = value.category;
+        const highlight = key +" From Category: " + cat ;
+        let parmFlag = 0;
+        let insertString = `COMPONENT my_component = ${key}(\n`
+
+        let doc_string = "";
+        value.parameter_names.forEach(function(name) {
+          const parmType = value.parameter_types[name];
+          const unit = value.parameter_units[name];
+          const defaultVal = value.parameter_defaults[name];
+          if (name === "Source_Maxwell_3"){
+            log.write(defaultVal);
+          }
+          if (defaultVal === null){
+            insertString += `    ${name} = ,\n`
+            parmFlag = 1;
+          }
+          const comment = value.parameter_comments[name];
+          doc_string += `${parmType} ${name} [${unit}] = ${defaultVal} | ${comment} \n\n`;
+        })
+        if (parmFlag===1){
+          insertString = insertString.substring(0, insertString.length - 2); 
+        }
+        insertString += `\n)\nAT (0,0,0) RELATIVE PREVIOUS\n`
+        aggregated.push({
+           label,
+           detail: highlight,
+           documentation: doc_string,
+           insertText: insertString
+         });
+      }
+      catch{
+        aggregated.push({
+          label,
+          detail: "McStas Component. Parsing unsuccessfull",
+          documentation: "Missing documentation for now"
+        })
+        log.write("Log didn't work");
+        log.write(JSON.stringify(value, null, 2));
+        }
+      } else {
+        log.write('[undefined]');
+    }
+
+  });
+
+
   // 3) DECLARE variables
   for (const v of declaredVariables) {
     aggregated.push({

@@ -1,11 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.openCompDialog = openCompDialog;
-const fs = require("fs");
 const vscode = require("vscode");
-const child_process_1 = require("child_process");
-const path = require("path");
-const global_params_1 = require("./global_params");
 const os = require('os');
 async function openCompDialog(filePath) {
     const comp_json = await runPythonParserAndReadJSON(filePath);
@@ -242,44 +238,11 @@ function getWebviewContent(header, parameters, units, comments) {
         </html>
     `;
 }
-// TODO: Make cached results, such that the output doesn't have to be regenerated
-// Every time.
-function runPythonParserAndReadJSON(component) {
-    const mcstasPath = vscode.workspace.getConfiguration().get('componentViewer.rootPath');
-    if (!mcstasPath) {
-        throw new Error("Missing configuration: componentViewer.rootPath");
-    }
-    const pythonScript = path.join(global_params_1.extensionRootPath, 'media/comp_parser.py');
-    const outputPath = path.join(os.tmpdir(), 'comp_dict.json');
-    return new Promise((resolve, reject) => {
-        // Run the Python script
-        (0, child_process_1.execFile)('conda', ['run', '-n', 'mcstas', 'python', pythonScript, component, mcstasPath, outputPath], {}, (error, stdout, stderr) => {
-            if (stdout) {
-                console.log('[Python stdout]', stdout); // Logs printed with print()
-            }
-            if (error) {
-                console.log(`Python script failed: ${error.message}`);
-                return reject(`Python script failed: ${error.message}`);
-            }
-            if (stderr) {
-                console.warn(`Python stderr: ${stderr}`);
-            }
-            // Read the output file
-            fs.readFile(outputPath, { encoding: 'utf-8' }, (err, data) => {
-                if (err) {
-                    console.error(err);
-                    return;
-                }
-                console.log(data); // data is a string
-                try {
-                    const json = JSON.parse(data);
-                    resolve(json); // ✅ Return parsed JSON
-                }
-                catch (parseErr) {
-                    reject(`Failed to parse JSON: ${parseErr}`);
-                }
-            });
-        });
-    });
+async function runPythonParserAndReadJSON(component) {
+    const comp_name = component.split("/").pop().split('.')[0];
+    const response = await fetch(`http://127.0.0.1:5000/get_comp/${comp_name}`);
+    if (!response.ok)
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    return response.json();
 }
 //# sourceMappingURL=dialogue.js.map

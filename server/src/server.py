@@ -15,32 +15,26 @@ def hello():
 #     name = data.get('name', 'unknown')
 #     return jsonify({"message": f"Hello, {name}!"})
 
-# @app.route('/getcomp')
-# def get_comp():
-#     data = request.get_json()
-#     comp_name = data.get('comp_name', 'unknown')
-#     return jsonify({"message": f"Component requested is {comp_name}"}) 
+@app.route('/get_comp/<name>')
+def get_comp(name):
+
+    try:
+        cr = ComponentReader("../../McCode/mcstas-comps", ".")
+        comp_info = cr.read_name(name)
+        return jsonify(comp_info.__dict__)
+    except Exception as e:
+        return f"Error: {str(e)} cr", 500
+
+
 
 @app.route('/get_all_comps')
 def get_all_comps():
-
     try:
         cr = ComponentReader("../../McCode/mcstas-comps", ".")
         # Loop over all components and read their info
         for comp in cr.component_category.keys():
             try:
-                parsed_comp = cr.read_name(comp)
-                names = parsed_comp.parameter_names
-                default = parsed_comp.parameter_defaults
-                unit = parsed_comp.parameter_units
-                parm_type = parsed_comp.parameter_types
-                parm_comment = parsed_comp.parameter_comments
-                # Bunch it into a big string
-                info_string = ""
-                for name in names:
-                    tmp = f"{parm_type[name]}: {name} [{unit[name]}] = {default[name]}  // {parm_comment[name]}\n\n"
-                    info_string += tmp
-                cr.component_category[comp] = info_string
+                cr.component_category[comp] = cr.read_name(comp).__dict__
             except Exception as e:
                 cr.component_category[comp] = "Component information is unavailable"
 

@@ -14,10 +14,6 @@ const baseSuggestions = [
     { label: "RELATIVE", detail: "keyword", documentation: "The following component or keyword will be the coordinate system used for computing this components coordinate system" },
     { label: "PREVIOUS", detail: "keyword", documentation: "Use the previous component as the reference coordinate system" }
 ];
-/**
- * Components: label -> documentation
- * e.g. { "Motor": "A controllable motor", "Sensor": "Temperature sensor", ... }
- */
 const components = {};
 /** Optional end-of-pipeline overrides: label -> { detail?, documentation? } */
 const customAnnotations = {
@@ -92,14 +88,23 @@ function getDeclaredVariables(content) {
 /* ---------------- Components loader ---------------- */
 async function printcomponents(url) {
     const response = await fetch(url);
-    if (!response.ok)
+    if (!response.ok) {
+        log_1.default.write("Response is not okay");
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    return (await response.json());
+    }
+    return response.text();
 }
 async function ensureComponentsLoaded() {
     if (Object.keys(components).length === 0) {
-        const data = await printcomponents('http://127.0.0.1:5000/get_all_comps');
-        Object.assign(components, data); // <-- mutate in place
+        const data1 = await printcomponents('http://127.0.0.1:5000/get_all_comps');
+        try {
+            const safeString = data1.replace(/\bNaN\b/g, 'null');
+            const parsed = JSON.parse(safeString);
+            Object.assign(components, parsed); // <-- mutate in place
+        }
+        catch (e) {
+            console.error("Failed to parse JSON:", e);
+        }
     }
 }
 /* ---------------- Utilities ---------------- */
@@ -182,18 +187,58 @@ const completion = (message) => {
     const declaredVariables = getDeclaredVariables(content);
     const inputParameters = getInputParameters(content);
     const aggregated = [];
+    // 1) Base commands COMPONENT etc.
     aggregated.push(...baseSuggestions);
     // 2) Components from the service
-    for (const [label, doc] of Object.entries(components)) {
-        const documentation = toPlainTextDocumentation(doc).split(",").join("\n");
-        log_1.default.write({ label, documentation });
-        aggregated.push({
-            label,
-            detail: "McStas Component. Parameters are:",
-            documentation: documentation
-        });
-    }
-    ;
+    Object.keys(components).forEach(function (key) {
+        const value = components[key];
+        let label = key;
+        if (value !== undefined) {
+            try {
+                const cat = value.category;
+                const highlight = key + " From Category: " + cat;
+                let parmFlag = 0;
+                let insertString = `COMPONENT my_component = ${key}(\n`;
+                let doc_string = "";
+                value.parameter_names.forEach(function (name) {
+                    const parmType = value.parameter_types[name];
+                    const unit = value.parameter_units[name];
+                    const defaultVal = value.parameter_defaults[name];
+                    if (name === "Source_Maxwell_3") {
+                        log_1.default.write(defaultVal);
+                    }
+                    if (defaultVal === null) {
+                        insertString += `    ${name} = ,\n`;
+                        parmFlag = 1;
+                    }
+                    const comment = value.parameter_comments[name];
+                    doc_string += `${parmType} ${name} [${unit}] = ${defaultVal} | ${comment} \n\n`;
+                });
+                if (parmFlag === 1) {
+                    insertString = insertString.substring(0, insertString.length - 2);
+                }
+                insertString += `\n)\nAT (0,0,0) RELATIVE PREVIOUS\n`;
+                aggregated.push({
+                    label,
+                    detail: highlight,
+                    documentation: doc_string,
+                    insertText: insertString
+                });
+            }
+            catch {
+                aggregated.push({
+                    label,
+                    detail: "McStas Component. Parsing unsuccessfull",
+                    documentation: "Missing documentation for now"
+                });
+                log_1.default.write("Log didn't work");
+                log_1.default.write(JSON.stringify(value, null, 2));
+            }
+        }
+        else {
+            log_1.default.write('[undefined]');
+        }
+    });
     // 3) DECLARE variables
     for (const v of declaredVariables) {
         aggregated.push({
