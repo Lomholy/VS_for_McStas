@@ -13,10 +13,27 @@ const node_1 = require("vscode-languageclient/node");
 const componentProvider_1 = require("./componentProvider"); // assuming this file is componentProvider.ts
 const mcdisplayCommand_1 = require("./mcdisplayCommand");
 const mcplotCommand_1 = require("./mcplotCommand");
+const checkCondaEnv_1 = require("./checkCondaEnv");
 const global_params_1 = require("./global_params");
 let flaskProcess;
 let client;
 function activate(context) {
+    let condaEnv = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
+    if (condaEnv === "") {
+        const envs = (0, checkCondaEnv_1.findEnvsWithMcStasAndFlask)();
+        if (envs.length) {
+            console.log('Found matching environments:');
+            for (const e of envs) {
+                console.log(`- ${e.name} (${e.path})`);
+            }
+        }
+        else {
+            console.log('No Conda env found with mcstas (Conda pkg) and Flask (importable).');
+        }
+        // Choose environment as what we use for conda runs:
+        vscode.workspace.getConfiguration().update('componentViewer.condaEnv', envs[0].name, vscode.ConfigurationTarget.Global);
+        condaEnv = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
+    }
     const serverPath = path.join(__dirname, '../../server/src', 'server.py');
     console.log(serverPath);
     const condaExe = process.env.CONDA_EXE || 'conda'; // falls back to PATH
@@ -24,7 +41,7 @@ function activate(context) {
     const args = [
         'run',
         '--no-capture-output', // stream logs through to your extension
-        '-n', 'mcstas', // environment name
+        '-n', condaEnv, // environment name
         'python', // interpreter inside that env
         serverPath // your Flask entrypoint
     ];

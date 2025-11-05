@@ -14,15 +14,31 @@ import {
 import { ComponentProvider, Component, activateComponentViewer, setMcStasPath} from './componentProvider'; // assuming this file is componentProvider.ts
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
-
+import { findEnvsWithMcStasAndFlask } from './checkCondaEnv';
 import { setExtensionRootPath } from './global_params';
-
 
 
 
 let flaskProcess: ReturnType<typeof spawn> | undefined;
 let client: LanguageClient;
 export function activate(context: vscode.ExtensionContext) {
+	let condaEnv:string = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
+	if (condaEnv===""){
+		const envs = findEnvsWithMcStasAndFlask();
+		if (envs.length) {
+		console.log('Found matching environments:');
+		for (const e of envs) {
+			console.log(`- ${e.name} (${e.path})`);
+		
+		}
+		} else {
+			console.log('No Conda env found with mcstas (Conda pkg) and Flask (importable).');
+		}
+		// Choose environment as what we use for conda runs:
+		vscode.workspace.getConfiguration().update('componentViewer.condaEnv', envs[0].name, vscode.ConfigurationTarget.Global);
+		condaEnv = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
+	}
+	
 	const serverPath = path.join(__dirname, '../../server/src', 'server.py');
 	console.log(serverPath)
 	
@@ -32,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const args = [
 	'run',
 	'--no-capture-output', // stream logs through to your extension
-	'-n', 'mcstas',        // environment name
+	'-n', condaEnv,        // environment name
 	'python',              // interpreter inside that env
 	serverPath             // your Flask entrypoint
 	];
@@ -41,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
 	cwd,
 	env: { ...process.env, FLASK_ENV: 'development' }, // optional
 	shell: process.platform === 'win32', // resolve conda.bat on Windows
-	});
+	});	
 
 	flaskProcess.stdout.on('data', d => console.log(`[flask] ${d.toString()}`));
 	flaskProcess.stderr.on('data', d => console.error(`[flask] ${d.toString()}`));

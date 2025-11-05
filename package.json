@@ -24,6 +24,12 @@
           "type": "string",
           "default": "",
           "description": "The root path for the Component Viewer tree view."
+          
+        },
+        "componentViewer.condaEnv": {
+          "type": "string",
+          "default": "",
+          "description": "The name of the used conda environment"
         }
       }
     },

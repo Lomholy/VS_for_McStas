@@ -267,6 +267,7 @@ export const completion = (message: RequestMessage): CompletionList | null => {
   const inputParameters = getInputParameters(content);
 
   const { inComponentBlock, componentType } = getComponentContext(content, params);
+  // TODO: This fails sometimes
   const aggregated: CompletionItem[] = [];
   // Example: log or branch logic
   log.write({ inComponentBlock });
