@@ -28,12 +28,16 @@ function activate(context) {
             }
         }
         else {
+            vscode.window.showWarningMessage("Component Viewer: No Conda environment was found that contains both 'mcstas' and 'flask'. " +
+                "Install both packages in any Conda environment (via conda or pip inside the env). ");
             console.log('No Conda env found with mcstas (Conda pkg) and Flask (importable).');
         }
         // Choose environment as what we use for conda runs:
         vscode.workspace.getConfiguration().update('componentViewer.condaEnv', envs[0].name, vscode.ConfigurationTarget.Global);
         condaEnv = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
     }
+    vscode.window.showInformationMessage(`Component Viewer: Using Conda environment '${condaEnv}'. ` +
+        `You can change this later in Settings → "componentViewer.condaEnv".`);
     const serverPath = path.join(__dirname, '../../server/src', 'server.py');
     console.log(serverPath);
     const condaExe = process.env.CONDA_EXE || 'conda'; // falls back to PATH
