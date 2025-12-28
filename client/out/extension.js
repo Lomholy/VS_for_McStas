@@ -8,61 +8,15 @@ const dialogue_1 = require("./dialogue");
 const mrunCommand_1 = require("./mrunCommand");
 const path = require("path");
 const vscode_1 = require("vscode");
-const child_process_1 = require("child_process");
 const node_1 = require("vscode-languageclient/node");
 const componentProvider_1 = require("./componentProvider"); // assuming this file is componentProvider.ts
 const mcdisplayCommand_1 = require("./mcdisplayCommand");
 const mcplotCommand_1 = require("./mcplotCommand");
-const checkCondaEnv_1 = require("./checkCondaEnv");
 const global_params_1 = require("./global_params");
-let flaskProcess;
 let client;
 function activate(context) {
-    let condaEnv = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
-    if (condaEnv === "") {
-        const envs = (0, checkCondaEnv_1.findEnvsWithMcStasAndFlask)();
-        if (envs.length) {
-            console.log('Found matching environments:');
-            for (const e of envs) {
-                console.log(`- ${e.name} (${e.path})`);
-            }
-        }
-        else {
-            vscode.window.showWarningMessage("Component Viewer: No Conda environment was found that contains both 'mcstas' and 'flask'. " +
-                "Install both packages in any Conda environment (via conda or pip inside the env). ");
-            console.log('No Conda env found with mcstas (Conda pkg) and Flask (importable).');
-        }
-        // Choose environment as what we use for conda runs:
-        vscode.workspace.getConfiguration().update('componentViewer.condaEnv', envs[0].name, vscode.ConfigurationTarget.Global);
-        condaEnv = vscode.workspace.getConfiguration().get('componentViewer.condaEnv');
-    }
-    vscode.window.showInformationMessage(`Component Viewer: Using Conda environment '${condaEnv}'. ` +
-        `You can change this later in Settings → "componentViewer.condaEnv".`);
     const serverPath = path.join(__dirname, '../../server/src', 'server.py');
     console.log(serverPath);
-    const condaExe = process.env.CONDA_EXE || 'conda'; // falls back to PATH
-    const cwd = path.dirname(serverPath); // or your workspace root
-    const args = [
-        'run',
-        '--no-capture-output', // stream logs through to your extension
-        '-n', condaEnv, // environment name
-        'python', // interpreter inside that env
-        serverPath // your Flask entrypoint
-    ];
-    try {
-        const flaskProcess = (0, child_process_1.spawn)(condaExe, args, {
-            cwd,
-            env: { ...process.env, FLASK_ENV: 'development' }, // optional
-            shell: process.platform === 'win32', // resolve conda.bat on Windows
-        });
-        flaskProcess.stdout.on('data', d => console.log(`[flask] ${d.toString()}`));
-        flaskProcess.stderr.on('data', d => console.error(`[flask] ${d.toString()}`));
-        flaskProcess.on('error', err => console.error('Failed to start Flask:', err));
-        flaskProcess.on('exit', (code, signal) => console.log(`Flask exited: code=${code}, signal=${signal}`));
-    }
-    catch {
-        // Catch is literally just to hope that it is our own flask server
-    }
     (0, global_params_1.setExtensionRootPath)(context.extensionPath);
     (0, componentProvider_1.activateComponentViewer)(context); // Read the component tree
     context.subscriptions.push(// Allow user to insert a component
@@ -126,10 +80,6 @@ function deactivate() {
     console.log("Deactivating extension");
     if (!client) {
         return undefined;
-    }
-    if (flaskProcess) {
-        flaskProcess.kill();
-        flaskProcess = undefined;
     }
     return client.stop();
 }

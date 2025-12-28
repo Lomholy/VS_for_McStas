@@ -8,8 +8,9 @@
     "strict": true,
     "outDir": "out",
     "rootDir": "src",
-    "incremental": true
-  },
+    "incremental": true,
+    "resolveJsonModule": true 
+    },
   "include": ["src"],
   "exclude": ["node_modules", ".vscode-test"]
 }

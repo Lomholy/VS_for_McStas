@@ -2,9 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.openCompDialog = openCompDialog;
 const vscode = require("vscode");
+const data = require("../../server/src/methods/textDocument/mcstas-comps.json");
 const os = require('os');
 async function openCompDialog(filePath) {
-    const comp_json = await runPythonParserAndReadJSON(filePath);
+    const comp_json = getcomp(filePath);
     const header = comp_json.name;
     const parameters = Object.entries(comp_json.parameter_defaults).map(([name, value]) => ({
         name,
@@ -238,11 +239,14 @@ function getWebviewContent(header, parameters, units, comments) {
         </html>
     `;
 }
-async function runPythonParserAndReadJSON(component) {
+function getcomp(component) {
+    console.log("Component is ", component);
     const comp_name = component.split("/").pop().split('.')[0];
-    const response = await fetch(`http://127.0.0.1:5000/get_comp/${comp_name}`);
-    if (!response.ok)
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    return response.json();
+    const comp = data[comp_name];
+    console.log("Json obj is ", data[comp_name]);
+    if (data[comp_name] == undefined) {
+        vscode.window.showErrorMessage(`Error: ${comp_name} was not parsed correctly by McStas, so it cannot be shown as a component`);
+    }
+    return data[comp_name];
 }
 //# sourceMappingURL=dialogue.js.map

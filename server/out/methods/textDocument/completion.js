@@ -6,6 +6,7 @@ exports.getDeclaredVariables = getDeclaredVariables;
 const FuzzySearch = require("fuzzy-search");
 const documents_1 = require("../../documents");
 const log_1 = require("../../log");
+const data = require("./mcstas-comps.json");
 const parse_helpers_1 = require("./parse_helpers");
 var CompletionItemKind;
 (function (CompletionItemKind) {
@@ -116,25 +117,9 @@ function getDeclaredVariables(content) {
     return Array.from(new Set(vars));
 }
 /* ---------------- Components loader ---------------- */
-async function printcomponents(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        log_1.default.write("Response is not okay");
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    }
-    return response.text();
-}
 async function ensureComponentsLoaded() {
     if (Object.keys(components).length === 0) {
-        const data1 = await printcomponents('http://127.0.0.1:5000/get_all_comps');
-        try {
-            const safeString = data1.replace(/\bNaN\b/g, 'null');
-            const parsed = JSON.parse(safeString);
-            Object.assign(components, parsed); // <-- mutate in place
-        }
-        catch (e) {
-            console.error("Failed to parse JSON:", e);
-        }
+        Object.assign(components, data); // <-- mutate in place
     }
 }
 /* ---------------- Utilities ---------------- */
@@ -225,6 +210,7 @@ const completion = (message) => {
             });
         }
     }
+    log_1.default.write({ data });
     // 1) Base commands COMPONENT etc.
     aggregated.push(...baseSuggestions);
     // 2) Components from the service
