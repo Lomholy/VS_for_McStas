@@ -284,10 +284,10 @@ function getcomp(component: string) {
     console.log("Component is ", component)
 
     const comp_name = component.split("/").pop().split('.')[0];
-        const comp = data[comp_name]
-        console.log("Json obj is ", data[comp_name])
-        if (data[comp_name] == undefined){
-            vscode.window.showErrorMessage(`Error: ${comp_name} was not parsed correctly by McStas, so it cannot be shown as a component`)
-        }
-        return data[comp_name];  
+    const comp = data[comp_name]
+    console.log("Json obj is ", data[comp_name])
+    if (comp == undefined){
+        vscode.window.showErrorMessage(`Error: ${comp_name} was not parsed correctly by McStas, so it cannot be shown as a component`)
+    }
+    return comp;  
 }

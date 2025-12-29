@@ -1,8 +1,8 @@
-import { DiffieHellmanGroup } from "crypto";
 import log from "./log" 
 import { initialize } from "./methods/initialize";
 import { completion } from "./methods/textDocument/completion";
 import { didChange } from "./methods/textDocument/didChange";
+import {hover} from "./methods/textDocument/hover";
 interface Message {
   jsonrpc: string;
 }
@@ -19,7 +19,7 @@ export interface RequestMessage extends NotificationMessage {
 
 
 type RequestMethod = (message: RequestMessage
-) => ReturnType<typeof initialize> | ReturnType <typeof completion>; 
+) => ReturnType<typeof initialize> | ReturnType <typeof completion> | ReturnType <typeof hover>; 
 
 type NotificationMethod = (message: NotificationMessage) => void;
 
@@ -27,6 +27,7 @@ const methodLookup: Record<string, RequestMethod| NotificationMethod > = {
   initialize,
   "textDocument/completion": completion,
   "textDocument/didChange": didChange,
+  "textDocument/hover": hover
 };
 
 
@@ -76,7 +77,7 @@ process.stdin.on("data", (chunk) => {
 
 
   }
-  // log.write(chunk.toString());
+  log.write(chunk.toString());
   // ..
 });
 

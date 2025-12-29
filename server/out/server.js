@@ -4,10 +4,12 @@ const log_1 = require("./log");
 const initialize_1 = require("./methods/initialize");
 const completion_1 = require("./methods/textDocument/completion");
 const didChange_1 = require("./methods/textDocument/didChange");
+const hover_1 = require("./methods/textDocument/hover");
 const methodLookup = {
     initialize: initialize_1.initialize,
     "textDocument/completion": completion_1.completion,
     "textDocument/didChange": didChange_1.didChange,
+    "textDocument/hover": hover_1.hover
 };
 const respond = (id, result) => {
     const message = JSON.stringify({ id, result });
@@ -42,7 +44,7 @@ process.stdin.on("data", (chunk) => {
         // Remove the processed message from the buffer
         buffer = buffer.slice(messageStart + contentLength);
     }
-    // log.write(chunk.toString());
+    log_1.default.write(chunk.toString());
     // ..
 });
 //# sourceMappingURL=server.js.map

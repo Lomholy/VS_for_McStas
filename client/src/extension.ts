@@ -3,8 +3,7 @@ import { createTemplateInstr } from './createTemplateInstr';
 import {openCompDialog} from './dialogue'
 import { mcrunCommand } from './mrunCommand';
 import * as path from "path";
-import { workspace, ExtensionContext } from "vscode";
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { workspace} from "vscode";
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -14,7 +13,6 @@ import {
 import { ComponentProvider, Component, activateComponentViewer, setMcStasPath} from './componentProvider'; // assuming this file is componentProvider.ts
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
-import { findEnvsWithMcStasAndFlask } from './checkCondaEnv';
 import { setExtensionRootPath } from './global_params';
 
 

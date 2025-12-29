@@ -1,8 +1,8 @@
 import { RequestMessage } from "../../server";
 import FuzzySearch = require('fuzzy-search');
-import * as fs from "fs"
 import { documents, TextDocumentIdentifier } from "../../documents";
 import log from '../../log';
+import * as data from './mcstas-comps.json';
 import {looksLikeFunctionPrototype,
         stripCommentsAndStrings,
         splitTopLevelBy,
@@ -168,29 +168,9 @@ export function getDeclaredVariables(content: string): string[] {
 
 /* ---------------- Components loader ---------------- */
 
-async function printcomponents(url: string) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    log.write("Response is not okay");
-    throw new Error(`HTTP ${response.status} ${response.statusText}`);
-  }
-  return response.text();
-}
-
 async function ensureComponentsLoaded() {
   if (Object.keys(components).length === 0) {
-    const data1 = await printcomponents('http://127.0.0.1:5000/get_all_comps');
-
-  try {
-     
-    const safeString = data1.replace(/\bNaN\b/g, 'null');
-    const parsed = JSON.parse(safeString);
-    Object.assign(components, parsed);      // <-- mutate in place
-  } catch (e) {
-      console.error("Failed to parse JSON:", e);
-  }
-
-
+    Object.assign(components, data);      // <-- mutate in place
   }
 }
 
@@ -321,7 +301,7 @@ export const completion = (message: RequestMessage): CompletionList | null => {
     }
   }
 
-
+  log.write({ data });
 
   // 1) Base commands COMPONENT etc.
   aggregated.push(...baseSuggestions);
