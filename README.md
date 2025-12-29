@@ -50,3 +50,8 @@ Fix of server break on multiple instances of vs code active
 
 Move cursor to end at component name when component is inserted.
 Also fix error in declare section regex.
+
+### 2.1.0
+
+Remove flask dependency by using a dict for the mcstas component lookup.
+Also add in hover support to the language server.
