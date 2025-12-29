@@ -55,3 +55,8 @@ Also fix error in declare section regex.
 
 Remove flask dependency by using a dict for the mcstas component lookup.
 Also add in hover support to the language server.
+
+
+### 2.2.0
+
+Publish correctly...
