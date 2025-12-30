@@ -60,3 +60,8 @@ Also add in hover support to the language server.
 ### 2.2.0
 
 Publish correctly...
+
+
+### 2.2.1 
+
+Add failsafe to content read for hover that would crash the server.
