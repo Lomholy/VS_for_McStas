@@ -1,6 +1,6 @@
 import { RequestMessage } from "../../server";
 import { documents, TextDocumentIdentifier } from "../../documents";
-import { integer } from "vscode-languageclient";
+import { integer} from "vscode-languageclient";
 import * as data from "./mcstas-comps.json";
 import log from "../../log";
 
@@ -151,9 +151,12 @@ export function buildComponentHoverMarkdown(
 export const hover = (message: RequestMessage): Hover | null => {
     const hover = message.params as HoverParams;
     const { textDocument, position } = hover;
-    log.write("Inside of hover now!");
-    const text = documents.get(textDocument.uri) as string
-    log.write(text);
+    // log.write(textDocument.uri)
+    const text = documents.get(hover.textDocument.uri);
+
+    if (!text){
+      return null;
+    }
 
     const lines = text.split(/\r?\n/);
     const lineText = lines[position.line];
@@ -167,10 +170,9 @@ export const hover = (message: RequestMessage): Hover | null => {
     if (match) {
         const keyword = match[1];
         const valueName = match[2];
-        log.write(keyword);
-        log.write(valueName);
+        // log.write(keyword);
+        // log.write(valueName);
 
-        // Optional: ensure the hover column is actually within the wordOfInterest
         // Compute the character range of <wordOfInterest> in this line
         const startChar = match.index + match[0].lastIndexOf(valueName);
         const endChar = startChar + valueName.length;
@@ -181,25 +183,14 @@ export const hover = (message: RequestMessage): Hover | null => {
         if (withinWord) {
             if (hasKey(data, valueName)) {
                 const spec = data[valueName] as ComponentSpec; 
-                log.write(`hover: COMPONENT "${valueName}" detected`);
+                // log.write(`hover: COMPONENT "${valueName}" detected`);
                 return buildComponentHoverMarkdown(spec);
             } else {
-                log.write(
-                `hover: COMPONENT line detected (component="${valueName}", line=${position.line + 1}), but ${valueName} is not a valid component`
-                );
+                // log.write(
+                // `hover: COMPONENT line detected (component="${valueName}", line=${position.line + 1}), but ${valueName} is not a valid component`
+                // );
             }
-        } else {
-            // If you want to log looser detection (anywhere on the COMPONENT line):
-            log.write(
-                `hover: COMPONENT line detected (component="${valueName}", line=${position.line + 1}), hover not on value`
-            );
         }
-    } else {
-        // Optional: silence this if you prefer less logging
-        log.write(`hover: no COMPONENT on line ${position.line + 1}`);
-        log.write(lineText)
-    }
-
-    // For now, you’re just logging. Later you can return a Hover payload here.
-    return null; // or `null` depending on your framework’s expectations
+    } 
+    return null; 
 };
