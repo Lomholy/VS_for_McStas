@@ -4,7 +4,6 @@ exports.hover = void 0;
 exports.buildComponentHoverMarkdown = buildComponentHoverMarkdown;
 const documents_1 = require("../../documents");
 const data = require("./mcstas-comps.json");
-const log_1 = require("../../log");
 // ---- Utility: escape Markdown special chars (safe for names/units) ----
 function escapeMd(text) {
     return String(text).replace(/([\\`*_}\[\#+\-!.])/g, '\\$1');
@@ -69,9 +68,11 @@ function buildComponentHoverMarkdown(spec, options = {}) {
 const hover = (message) => {
     const hover = message.params;
     const { textDocument, position } = hover;
-    log_1.default.write("Inside of hover now!");
-    const text = documents_1.documents.get(textDocument.uri);
-    log_1.default.write(text);
+    // log.write(textDocument.uri)
+    const text = documents_1.documents.get(hover.textDocument.uri);
+    if (!text) {
+        return null;
+    }
     const lines = text.split(/\r?\n/);
     const lineText = lines[position.line];
     // Pattern: COMPONENT <sometext> = <wordOfInterest>
@@ -82,9 +83,8 @@ const hover = (message) => {
     if (match) {
         const keyword = match[1];
         const valueName = match[2];
-        log_1.default.write(keyword);
-        log_1.default.write(valueName);
-        // Optional: ensure the hover column is actually within the wordOfInterest
+        // log.write(keyword);
+        // log.write(valueName);
         // Compute the character range of <wordOfInterest> in this line
         const startChar = match.index + match[0].lastIndexOf(valueName);
         const endChar = startChar + valueName.length;
@@ -93,25 +93,17 @@ const hover = (message) => {
         if (withinWord) {
             if (hasKey(data, valueName)) {
                 const spec = data[valueName];
-                log_1.default.write(`hover: COMPONENT "${valueName}" detected`);
+                // log.write(`hover: COMPONENT "${valueName}" detected`);
                 return buildComponentHoverMarkdown(spec);
             }
             else {
-                log_1.default.write(`hover: COMPONENT line detected (component="${valueName}", line=${position.line + 1}), but ${valueName} is not a valid component`);
+                // log.write(
+                // `hover: COMPONENT line detected (component="${valueName}", line=${position.line + 1}), but ${valueName} is not a valid component`
+                // );
             }
         }
-        else {
-            // If you want to log looser detection (anywhere on the COMPONENT line):
-            log_1.default.write(`hover: COMPONENT line detected (component="${valueName}", line=${position.line + 1}), hover not on value`);
-        }
     }
-    else {
-        // Optional: silence this if you prefer less logging
-        log_1.default.write(`hover: no COMPONENT on line ${position.line + 1}`);
-        log_1.default.write(lineText);
-    }
-    // For now, you’re just logging. Later you can return a Hover payload here.
-    return null; // or `null` depending on your framework’s expectations
+    return null;
 };
 exports.hover = hover;
 //# sourceMappingURL=hover.js.map
