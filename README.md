@@ -65,3 +65,8 @@ Publish correctly...
 ### 2.2.1 
 
 Add failsafe to content read for hover that would crash the server.
+
+### 2.2.2
+
+Make ComponentProvider work again, this time using the mcstas-comps json,
+and if the conda environment can be found, use that to open the component file.
