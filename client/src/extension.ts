@@ -10,7 +10,7 @@ import {
   ServerOptions,
   TransportKind,
 } from "vscode-languageclient/node";
-import { ComponentProvider, Component, activateComponentViewer, setMcStasPath} from './componentProvider'; // assuming this file is componentProvider.ts
+import { Component, activateComponentViewer} from './componentProvider'; // assuming this file is componentProvider.ts
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 import { setExtensionRootPath } from './global_params';
@@ -54,9 +54,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
 		mcplotCommand();
-	});
-	vscode.commands.registerCommand('mcstas.chooseMcStasResourceFolder', () => {
-		setMcStasPath();
 	});
 	
 	console.log(context.subscriptions);

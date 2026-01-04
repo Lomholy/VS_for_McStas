@@ -1,118 +1,135 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Component = exports.ComponentProvider = void 0;
-exports.askUserForPath = askUserForPath;
-exports.setMcStasPath = setMcStasPath;
+exports.Component = void 0;
 exports.activateComponentViewer = activateComponentViewer;
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
-async function askUserForPath() {
-    const folders = await vscode.window.showOpenDialog({
-        canSelectFolders: true,
-        canSelectFiles: false,
-        canSelectMany: false,
-        openLabel: 'Select a folder for Component Viewer'
-    });
-    if (folders && folders.length > 0) {
-        return folders[0].fsPath;
+const os = require("os");
+function resolveCompPathFromConda(category, compName) {
+    for (const envPrefix of getCandidateCondaEnvs()) {
+        const p = path.join(envPrefix, 'share', 'mcstas', 'resources', category, `${compName}.comp`);
+        if (fs.existsSync(p)) {
+            return p;
+        }
     }
     return undefined;
 }
-async function setMcStasPath() {
-    let rootPath = await askUserForPath();
-    if (rootPath) {
-        await vscode.workspace.getConfiguration().update('componentViewer.rootPath', rootPath, vscode.ConfigurationTarget.Global);
+/**
+ * Collect candidate Conda environment prefixes to test.
+ * 1) Active env via CONDA_PREFIX
+ * 2) Known env directories: ~/.conda/envs, ~/miniconda3/envs, ~/anaconda3/envs
+ *    (we add each subfolder as an env prefix)
+ */
+function getCandidateCondaEnvs() {
+    const candidates = [];
+    // 1) Active environment
+    const active = process.env.CONDA_PREFIX;
+    if (active && fs.existsSync(active)) {
+        candidates.push(active);
     }
-    else {
-        vscode.window.showWarningMessage('No path selected for Component Viewer.');
-        return;
+    // 2) Common envs directories
+    const home = os.homedir();
+    const envDirs = [
+        path.join(home, '.conda', 'envs'),
+        path.join(home, 'miniconda3', 'envs'),
+        path.join(home, 'miniforge3', 'envs'),
+        path.join(home, 'anaconda3', 'envs'),
+        path.join(home, 'mambaforge', 'envs'),
+        path.join(home, 'micromamba', 'envs'),
+    ];
+    for (const envDir of envDirs) {
+        if (!fs.existsSync(envDir))
+            continue;
+        try {
+            for (const entry of fs.readdirSync(envDir)) {
+                const envPath = path.join(envDir, entry);
+                // We consider any directory in envs/ as a potential env prefix
+                if (fs.existsSync(envPath) && fs.statSync(envPath).isDirectory()) {
+                    candidates.push(envPath);
+                }
+            }
+        }
+        catch {
+            /* keep it minimal: ignore errors */
+        }
     }
+    // De-dupe while preserving order
+    return Array.from(new Set(candidates));
 }
 async function activateComponentViewer(context) {
-    let rootPath = context.asAbsolutePath('McCode/mcstas-comps');
-    vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(rootPath));
+    const jsonPath = context.asAbsolutePath('./server/src/methods/textDocument/mcstas-comps.json');
+    vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(jsonPath, context));
 }
 class ComponentProvider {
-    constructor(workspaceRoot) {
-        this.workspaceRoot = workspaceRoot;
+    constructor(jsonFile, ctx) {
+        this.jsonFile = jsonFile;
+        this.ctx = ctx;
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+        this.data = {};
+        this.loadData();
     }
     refresh() {
         this._onDidChangeTreeData.fire();
     }
     getTreeItem(element) {
-        const treeItem = new vscode.TreeItem(element.label, element.collapsibleState);
-        treeItem.command = {
-            command: 'vs-for-mcstas.openCompDialog',
-            title: 'Open .comp file',
-            arguments: [element.fullPath]
-        };
-        return treeItem;
+        return element;
     }
     getChildren(element) {
-        if (!this.workspaceRoot) {
-            vscode.window.showInformationMessage('No folder found');
-            return Promise.resolve([]);
+        if (!element) {
+            // Root level: categories
+            return Promise.resolve(Object.keys(this.data).map(cat => new Component(cat, vscode.TreeItemCollapsibleState.Collapsed)));
         }
-        const dirPath = element ? element.fullPath : this.workspaceRoot;
-        return Promise.resolve(this.getComponentsInDirectory(dirPath));
+        else {
+            // Category level: components
+            const comps = this.data[element.label] || [];
+            return Promise.resolve(comps.map(comp => {
+                // Try to resolve fullPath (optional)
+                const fullPath = resolveCompPathFromConda(comp.category, comp.name);
+                const item = new Component(comp.name, vscode.TreeItemCollapsibleState.None, fullPath);
+                item.command = {
+                    command: 'vs-for-mcstas.openCompDialog',
+                    title: 'Open Component',
+                    arguments: [fullPath ?? comp.name] // prefer fullPath when available, fallback to name
+                };
+                return item;
+            }));
+        }
     }
-    getComponentsInDirectory(dirPath) {
-        if (!this.pathExists(dirPath)) {
-            return [];
+    loadData() {
+        const raw = fs.readFileSync(this.jsonFile, 'utf8');
+        const parsed = JSON.parse(raw);
+        this.data = {};
+        for (const key of Object.keys(parsed)) {
+            const comp = parsed[key];
+            const category = comp.category || 'Uncategorized';
+            if (!this.data[category])
+                this.data[category] = [];
+            this.data[category].push({ name: comp.name, category });
         }
-        const entries = fs.readdirSync(dirPath);
-        const items = entries.map(name => {
-            const fullPath = path.join(dirPath, name);
-            const stat = fs.statSync(fullPath);
-            return { name, fullPath, isDirectory: stat.isDirectory() };
-        })
-            .filter(entry => {
-            // Always ignore 'data' and 'examples' folders
-            if (entry.isDirectory && (entry.name === 'data' || entry.name === 'examples')) {
-                return false;
-            }
-            // If we are at the root level, show only folders
-            if (dirPath === this.workspaceRoot) {
-                return entry.isDirectory;
-            }
-            else {
-                // Inside folders: show folders + .comp files only
-                return entry.isDirectory || entry.name.endsWith('.comp');
-            }
-        })
-            .map(entry => new Component(entry.name, entry.fullPath, entry.isDirectory
-            ? vscode.TreeItemCollapsibleState.Collapsed
-            : vscode.TreeItemCollapsibleState.None));
-        return items;
-    }
-    pathExists(p) {
-        try {
-            fs.accessSync(p);
-        }
-        catch (err) {
-            return false;
-        }
-        return true;
     }
 }
-exports.ComponentProvider = ComponentProvider;
 class Component extends vscode.TreeItem {
-    constructor(label, fullPath, collapsibleState) {
+    constructor(label, collapsibleState, fullPath // ✅ Optional now
+    ) {
         super(label, collapsibleState);
         this.label = label;
-        this.fullPath = fullPath;
         this.collapsibleState = collapsibleState;
-        this.contextValue = 'compFile'; // <- very important
-        this.tooltip = this.fullPath;
-        this.resourceUri = vscode.Uri.file(this.fullPath);
-        if (fs.existsSync(this.fullPath)) {
-            const stat = fs.statSync(this.fullPath);
-            this.iconPath = stat.isDirectory()
-                ? vscode.ThemeIcon.Folder
-                : vscode.ThemeIcon.File;
+        this.fullPath = fullPath;
+        this.contextValue = 'compFile';
+        this.tooltip = this.fullPath ?? this.label;
+        if (this.fullPath) {
+            this.resourceUri = vscode.Uri.file(this.fullPath);
+            if (fs.existsSync(this.fullPath)) {
+                const stat = fs.statSync(this.fullPath);
+                this.iconPath = stat.isDirectory()
+                    ? vscode.ThemeIcon.Folder
+                    : vscode.ThemeIcon.File;
+            }
+        }
+        else {
+            this.iconPath = vscode.ThemeIcon.File; // Default icon if no path
         }
     }
 }

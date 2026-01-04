@@ -45,9 +45,6 @@ function activate(context) {
     vscode.commands.registerCommand('mcstas.mcplot', () => {
         (0, mcplotCommand_1.mcplotCommand)();
     });
-    vscode.commands.registerCommand('mcstas.chooseMcStasResourceFolder', () => {
-        (0, componentProvider_1.setMcStasPath)();
-    });
     console.log(context.subscriptions);
     // The server is implemented in node
     const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
