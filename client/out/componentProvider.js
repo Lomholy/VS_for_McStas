@@ -6,6 +6,22 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+function getCategoryIcon(label) {
+    const key = label.toLowerCase();
+    const map = {
+        'sources': 'symbol-variable',
+        'optics': 'mirror', // fallback will handle if 'mirror' isn't available in some versions
+        'samples': 'beaker',
+        'uncategorized': 'question',
+        'monitors': 'eye',
+        'misc': 'gear',
+        'contrib': 'account',
+        'obsolete': 'trash',
+        'union': 'combine',
+    };
+    const iconName = map[key] ?? 'folder';
+    return new vscode.ThemeIcon(iconName);
+}
 function resolveCompPathFromConda(category, compName) {
     for (const envPrefix of getCandidateCondaEnvs()) {
         const p = path.join(envPrefix, 'share', 'mcstas', 'resources', category, `${compName}.comp`);
@@ -79,7 +95,12 @@ class ComponentProvider {
     getChildren(element) {
         if (!element) {
             // Root level: categories
-            return Promise.resolve(Object.keys(this.data).map(cat => new Component(cat, vscode.TreeItemCollapsibleState.Collapsed)));
+            return Promise.resolve(Object.keys(this.data).map(cat => {
+                const item = new Component(cat, vscode.TreeItemCollapsibleState.Collapsed);
+                // Set a category icon explicitly
+                item.iconPath = getCategoryIcon(cat);
+                return item;
+            }));
         }
         else {
             // Category level: components

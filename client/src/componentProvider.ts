@@ -9,6 +9,25 @@ type ComponentData = {
 };
 
 
+function getCategoryIcon(label: string): vscode.ThemeIcon {
+  const key = label.toLowerCase();
+
+  const map: Record<string, string> = {
+    'sources': 'symbol-variable',
+    'optics': 'mirror',       // fallback will handle if 'mirror' isn't available in some versions
+    'samples': 'beaker',
+    'uncategorized': 'question',
+    'monitors': 'eye',
+    'misc': 'gear',
+    'contrib': 'account',
+    'obsolete': 'trash',
+    'union': 'combine',
+  };
+
+  const iconName = map[key] ?? 'folder';
+  return new vscode.ThemeIcon(iconName);
+}
+
 
 function resolveCompPathFromConda(category: string, compName: string): string | undefined {
   for (const envPrefix of getCandidateCondaEnvs()) {
@@ -93,9 +112,16 @@ class ComponentProvider implements vscode.TreeDataProvider<Component> {
     getChildren(element?: Component): Thenable<Component[]> {
         if (!element) {
             // Root level: categories
-            return Promise.resolve(Object.keys(this.data).map(cat =>
-                new Component(cat, vscode.TreeItemCollapsibleState.Collapsed)
-            ));
+            
+		return Promise.resolve(
+      		Object.keys(this.data).map(cat => {
+        		const item = new Component(cat, vscode.TreeItemCollapsibleState.Collapsed);
+        		// Set a category icon explicitly
+        		item.iconPath = getCategoryIcon(cat);
+        		return item;
+      		})
+    		);
+
         } else {
             // Category level: components
             const comps = this.data[element.label] || [];
