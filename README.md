@@ -1,15 +1,13 @@
 # vs-for-mcstas README
 
 VS-for-McStas is a vs code extension that serves as both a syntax highlighter,
-and as a component snippet writer.
+ component snippet writer, and language server.
 
-## Extension Settings
+The component snippet writer is only available if you have an installation of 
+ mcstas available through conda. If you do have a mcstas available through conda,
+ and it does not show up, please submit an issue on the github repository.
 
-Upon launching the extension for the first time you will be prompted to set your
-mcstas resource folder. For linux it can be found under /usr/share/mcstas/resources
 
-This can altso be accessed by pressing the mcstas icon on the left, and 
-then the three little buttons above the component folder list.
 
 ## Known Issues
 
@@ -70,3 +68,9 @@ Add failsafe to content read for hover that would crash the server.
 
 Make ComponentProvider work again, this time using the mcstas-comps json,
 and if the conda environment can be found, use that to open the component file.
+
+
+### 2.2.3
+
+Make ComponentProvider sort alphabetically.
+Fix language server crash when opening files typed with non standard utf encodings.
