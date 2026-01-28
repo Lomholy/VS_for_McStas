@@ -4,8 +4,8 @@ import * as path from 'path';
 import * as os from 'os';
 
 type ComponentData = {
-    name: string;
-    category: string;
+  name: string;
+  category: string;
 };
 
 
@@ -31,7 +31,7 @@ function getCategoryIcon(label: string): vscode.ThemeIcon {
 
 function resolveCompPathFromConda(category: string, compName: string): string | undefined {
   for (const envPrefix of getCandidateCondaEnvs()) {
-	
+
     const p = path.join(envPrefix, 'share', 'mcstas', 'resources', category, `${compName}.comp`);
     if (fs.existsSync(p)) {
       return p;
@@ -60,7 +60,7 @@ function getCandidateCondaEnvs(): string[] {
   const envDirs = [
     path.join(home, '.conda', 'envs'),
     path.join(home, 'miniconda3', 'envs'),
-	path.join(home, 'miniforge3', 'envs'),
+    path.join(home, 'miniforge3', 'envs'),
     path.join(home, 'anaconda3', 'envs'),
     path.join(home, 'mambaforge', 'envs'),
     path.join(home, 'micromamba', 'envs'),
@@ -87,94 +87,99 @@ function getCandidateCondaEnvs(): string[] {
 }
 
 export async function activateComponentViewer(context: vscode.ExtensionContext) {
-    const jsonPath = context.asAbsolutePath('./server/src/methods/textDocument/mcstas-comps.json');
-    vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(jsonPath, context));
+  const jsonPath = context.asAbsolutePath('./server/src/methods/textDocument/mcstas-comps.json');
+  vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(jsonPath, context));
 }
 
 class ComponentProvider implements vscode.TreeDataProvider<Component> {
-    private _onDidChangeTreeData = new vscode.EventEmitter<Component | undefined | void>();
-    readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+  private _onDidChangeTreeData = new vscode.EventEmitter<Component | undefined | void>();
+  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    private data: Record<string, ComponentData[]> = {};
+  private data: Record<string, ComponentData[]> = {};
 
-    constructor(private jsonFile: string, private ctx: vscode.ExtensionContext) {
-        this.loadData();
+  constructor(private jsonFile: string, private ctx: vscode.ExtensionContext) {
+    this.loadData();
+  }
+
+  refresh(): void {
+    this._onDidChangeTreeData.fire();
+  }
+
+  getTreeItem(element: Component): vscode.TreeItem {
+    return element;
+  }
+
+  getChildren(element?: Component): Thenable<Component[]> {
+    if (!element) {
+      // Root level: categories → sort alphabetically (case-insensitive)
+      const categories = Object.keys(this.data)
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+      return Promise.resolve(
+        categories.map(cat => {
+          const item = new Component(cat, vscode.TreeItemCollapsibleState.Collapsed);
+          item.iconPath = getCategoryIcon(cat);
+          return item;
+        })
+      );
+
+    } else {
+      // Category level: components → sort alphabetically by name (case-insensitive)
+      const comps = (this.data[element.label] || [])
+        .slice() // don’t mutate original
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+      return Promise.resolve(
+        comps.map(comp => {
+          const fullPath = resolveCompPathFromConda(comp.category, comp.name);
+          const item = new Component(comp.name, vscode.TreeItemCollapsibleState.None, fullPath);
+          item.command = {
+            command: 'vs-for-mcstas.openCompDialog',
+            title: 'Open Component',
+            arguments: [fullPath ?? comp.name]
+          };
+          return item;
+        })
+      );
     }
+  }
 
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
+
+  private loadData() {
+    const raw = fs.readFileSync(this.jsonFile, 'utf8');
+    const parsed = JSON.parse(raw) as Record<string, any>;
+    this.data = {};
+
+    for (const key of Object.keys(parsed)) {
+      const comp = parsed[key];
+      const category = comp.category || 'Uncategorized';
+      if (!this.data[category]) this.data[category] = [];
+      this.data[category].push({ name: comp.name, category });
     }
-
-    getTreeItem(element: Component): vscode.TreeItem {
-        return element;
-    }
-
-    getChildren(element?: Component): Thenable<Component[]> {
-        if (!element) {
-            // Root level: categories
-            
-		return Promise.resolve(
-      		Object.keys(this.data).map(cat => {
-        		const item = new Component(cat, vscode.TreeItemCollapsibleState.Collapsed);
-        		// Set a category icon explicitly
-        		item.iconPath = getCategoryIcon(cat);
-        		return item;
-      		})
-    		);
-
-        } else {
-            // Category level: components
-            const comps = this.data[element.label] || [];
-            return Promise.resolve(comps.map(comp => {
-                // Try to resolve fullPath (optional)
-
-			const fullPath = resolveCompPathFromConda(comp.category, comp.name);
-			const item = new Component(comp.name, vscode.TreeItemCollapsibleState.None, fullPath);
-			item.command = {
-  				command: 'vs-for-mcstas.openCompDialog',
-  				title: 'Open Component',
-  				arguments: [fullPath ?? comp.name] // prefer fullPath when available, fallback to name
-				};
-			return item;
-            }));
-        }
-    }
-
-    private loadData() {
-        const raw = fs.readFileSync(this.jsonFile, 'utf8');
-        const parsed = JSON.parse(raw) as Record<string, any>;
-        this.data = {};
-
-        for (const key of Object.keys(parsed)) {
-            const comp = parsed[key];
-            const category = comp.category || 'Uncategorized';
-            if (!this.data[category]) this.data[category] = [];
-            this.data[category].push({ name: comp.name, category });
-        }
-    }
+  }
 }
 
 export class Component extends vscode.TreeItem {
-    constructor(
-        public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public readonly fullPath?: string // ✅ Optional now
-    ) {
-        super(label, collapsibleState);
-        this.contextValue = 'compFile';
-        this.tooltip = this.fullPath ?? this.label;
+  constructor(
+    public readonly label: string,
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+    public readonly fullPath?: string // ✅ Optional now
+  ) {
+    super(label, collapsibleState);
+    this.contextValue = 'compFile';
+    this.tooltip = this.fullPath ?? this.label;
 
-        if (this.fullPath) {
-            this.resourceUri = vscode.Uri.file(this.fullPath);
-            if (fs.existsSync(this.fullPath)) {
-                const stat = fs.statSync(this.fullPath);
-                this.iconPath = stat.isDirectory()
-                    ? vscode.ThemeIcon.Folder
-                    : vscode.ThemeIcon.File;
-            }
-        } else {
-            this.iconPath = vscode.ThemeIcon.File; // Default icon if no path
-        }
+    if (this.fullPath) {
+      this.resourceUri = vscode.Uri.file(this.fullPath);
+      if (fs.existsSync(this.fullPath)) {
+        const stat = fs.statSync(this.fullPath);
+        this.iconPath = stat.isDirectory()
+          ? vscode.ThemeIcon.Folder
+          : vscode.ThemeIcon.File;
+      }
+    } else {
+      this.iconPath = vscode.ThemeIcon.File; // Default icon if no path
     }
+  }
 }
 

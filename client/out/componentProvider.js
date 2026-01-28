@@ -94,25 +94,27 @@ class ComponentProvider {
     }
     getChildren(element) {
         if (!element) {
-            // Root level: categories
-            return Promise.resolve(Object.keys(this.data).map(cat => {
+            // Root level: categories → sort alphabetically (case-insensitive)
+            const categories = Object.keys(this.data)
+                .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+            return Promise.resolve(categories.map(cat => {
                 const item = new Component(cat, vscode.TreeItemCollapsibleState.Collapsed);
-                // Set a category icon explicitly
                 item.iconPath = getCategoryIcon(cat);
                 return item;
             }));
         }
         else {
-            // Category level: components
-            const comps = this.data[element.label] || [];
+            // Category level: components → sort alphabetically by name (case-insensitive)
+            const comps = (this.data[element.label] || [])
+                .slice() // don’t mutate original
+                .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
             return Promise.resolve(comps.map(comp => {
-                // Try to resolve fullPath (optional)
                 const fullPath = resolveCompPathFromConda(comp.category, comp.name);
                 const item = new Component(comp.name, vscode.TreeItemCollapsibleState.None, fullPath);
                 item.command = {
                     command: 'vs-for-mcstas.openCompDialog',
                     title: 'Open Component',
-                    arguments: [fullPath ?? comp.name] // prefer fullPath when available, fallback to name
+                    arguments: [fullPath ?? comp.name]
                 };
                 return item;
             }));
