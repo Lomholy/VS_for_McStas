@@ -1,76 +1,67 @@
-# vs-for-mcstas README
 
-VS-for-McStas is a vs code extension that serves as both a syntax highlighter,
- component snippet writer, and language server.
+# VS-for-McStas README
 
-The component snippet writer is only available if you have an installation of 
- mcstas available through conda. If you do have a mcstas available through conda,
- and it does not show up, please submit an issue on the github repository.
+VS-for-McStas is a VS Code extension that serves as both a syntax highlighter,
+component snippet writer, and language server.
 
-
+The component snippet writer is only available if you have an installation of
+mcstas available through conda. If you do have mcstas available through conda
+and it does not show up, please submit an issue on the GitHub repository.
 
 ## Known Issues
 
-
 ## Release Notes
 
-
-### 1.0.0
-
-Initial release of VS-for-McStas
-
-### 1.2.0
-
-Switch component reader to use mcstasscript.
-At the same time it is now mandatory to have a mcstas conda environment
-called 'mcstas'.
-
-### 1.2.1
-
-Fix comp_parser lying in src instead of media
-
-### 1.2.2
-
-Update readme to include the most recent developments.
-
-
-### 2.0.0
-
-Addition of language server, that allows for autocompletion in text.
-From now on the extension relies on the user having a conda environment with 
-flask and mcstas installed.
-
-### 2.0.1 
-
-Fix of server break on multiple instances of vs code active
-
-### 2.0.2
-
-Move cursor to end at component name when component is inserted.
-Also fix error in declare section regex.
-
-### 2.1.0
-
-Remove flask dependency by using a dict for the mcstas component lookup.
-Also add in hover support to the language server.
-
-
-### 2.2.0
-
-Publish correctly...
-
-
-### 2.2.1 
-
-Add failsafe to content read for hover that would crash the server.
+## 2.2.3
+Patch
+Make ComponentProvider sort alphabetically.
+Fix language server crash when opening files typed with non-standard UTF encodings.
 
 ### 2.2.2
+Patch
+Make ComponentProvider work again, now using the mcstas-comps JSON.
+If a conda environment is found, open the corresponding component file.
 
-Make ComponentProvider work again, this time using the mcstas-comps json,
-and if the conda environment can be found, use that to open the component file.
+### 2.2.1
+Patch
+Add failsafe to hover content reading to prevent server crashes.
 
+## 2.2.0
+Minor
+Publish correctly...
 
-### 2.2.3
+## 2.1.0
+Minor
+Remove flask dependency by switching to a dict-based mcstas component lookup.
+Add hover support to the language server.
 
-Make ComponentProvider sort alphabetically.
-Fix language server crash when opening files typed with non standard utf encodings.
+## 2.0.2
+Patch
+Move cursor to end of component name after insertion.
+Fix error in declare-section regex.
+
+### 2.0.1
+Patch
+Fix server crash when multiple VS Code instances are open.
+
+## 2.0.0
+Major
+Add language server with autocompletion support.
+From this version onward, the extension requires a conda environment containing both flask and mcstas.
+
+## 1.2.2
+Patch
+Update README to reflect newest changes.
+
+### 1.2.1
+Patch
+Fix comp_parser incorrectly located in src instead of media.
+
+## 1.2.0
+Minor
+Switch component reader to use mcstasscript.
+From now on a conda environment named mcstas is required.
+
+## 1.0.0
+Major
+Initial release of VS-for-McStas.
