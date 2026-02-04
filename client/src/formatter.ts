@@ -15,11 +15,16 @@ export function formatCIndentation(code: string): string {
 
     let inBlockComment = false;
 
-    // ---- PASS 1: Find all brace pairs ----
+    // Pass 1 outputs
     const bracePairs: { start: number; end: number }[] = [];
-    const stack: number[] = [];
+    const parenPairs: { start: number; end: number }[] = [];
+    const oneLiners: number[] = [];   // lines after which we indent one line
 
-    function stripComments(line: string): string {
+    const braceStack: number[] = [];
+    const parenStack: number[] = [];
+
+    // Strip comments but keep code
+    const stripComments = (line: string): string => {
         let out = "";
         let i = 0;
         while (i < line.length) {
@@ -34,39 +39,77 @@ export function formatCIndentation(code: string): string {
                 continue;
             }
             if (!inBlockComment && line.startsWith("//", i)) {
-                break; // rest of line ignored
+                break;
             }
             if (!inBlockComment) out += line[i];
             i++;
         }
         return out;
+    };
+
+    // ---------------- PASS 1: structure detection ----------------
+    for (let i = 0; i < n; i++) {
+        const raw = lines[i];
+        const codeOnly = stripComments(raw);
+
+        // detect brace + paren tokens
+        for (const ch of codeOnly) {
+            if (ch === "{") braceStack.push(i);
+            if (ch === "}") {
+                if (braceStack.length) {
+                    const s = braceStack.pop()!;
+                    bracePairs.push({ start: s, end: i });
+                }
+            }
+            if (ch === "(") parenStack.push(i);
+            if (ch === ")") {
+                if (parenStack.length) {
+                    const s = parenStack.pop()!;
+                    parenPairs.push({ start: s, end: i });
+                }
+            }
+        }
+
+        // Single-line if() / for() without brace
+        const trimmed = codeOnly.trim();
+        const isIf = trimmed.startsWith("if");
+        const isFor = trimmed.startsWith("for");
+
+        const hasParenPair = trimmed.includes("(") && trimmed.includes(")");
+        const hasOpenBrace = trimmed.includes("{");
+
+        if ((isIf || isFor) && hasParenPair && !hasOpenBrace) {
+            oneLiners.push(i);
+        }
     }
 
-    for (let i = 0; i < n; i++) {
-        const cleaned = stripComments(lines[i]);
-        for (const ch of cleaned) {
-            if (ch === '{') {
-                stack.push(i);
-            } else if (ch === '}') {
-                if (stack.length > 0) {
-                    const start = stack.pop()!;
-                    bracePairs.push({ start, end: i });
-                }
+    // ---------------- PASS 2: Build indentation levels ----------------
+    const indentLevel = new Array(n).fill(0);
+
+    // Brace blocks
+    for (const p of bracePairs) {
+        for (let i = p.start + 1; i < p.end; i++) indentLevel[i]++;
+    }
+
+    // Give parentheses smaller structural weight (optional)
+    // Here: each paren pair contributes +0.5 indentation
+    // You can drop this if you prefer only brace-based structural indentation.
+    for (const p of parenPairs) {
+        for (let i = p.start + 1; i < p.end; i++) indentLevel[i] ++;
+    }
+
+    // Single-line if() and for()
+    for (const idx of oneLiners) {
+        // indent only the *next* non-empty line
+        for (let j = idx + 1; j < n; j++) {
+            if (lines[j].trim() !== "") {
+                indentLevel[j] += 1;
+                break;
             }
         }
     }
 
-    // ---- PASS 2: Compute indentation level for each line ----
-    // indentLevel[i] = number of brace pairs that enclose line i
-    const indentLevel = new Array(n).fill(0);
-
-    for (const pair of bracePairs) {
-        for (let i = pair.start + 1; i < pair.end; i++) {
-            indentLevel[i]++;
-        }
-    }
-
-    // ---- PASS 3: Apply indentation ----
+    // ---------------- PASS 3: apply indentation ----------------
     const indentStr = "    ";
     const out: string[] = [];
 
@@ -74,9 +117,12 @@ export function formatCIndentation(code: string): string {
         const raw = lines[i];
         const trimmed = raw.trim();
 
-        if (trimmed === "") { out.push(raw); continue; }
+        if (trimmed === "") {
+            out.push(raw);
+            continue;
+        }
 
-        const ind = indentLevel[i] + 1; // +1 base indent as you previously used
+        const ind = Math.floor(indentLevel[i]) + 1;
         out.push(indentStr.repeat(ind) + trimmed);
     }
 
