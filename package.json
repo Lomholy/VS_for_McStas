@@ -173,6 +173,11 @@
           "meta.embedded.block.c": "c"
         }
       }
+    ],
+    "documentFormatting": [
+      {
+        "language": "mlang"
+      }
     ]
   },
   "scripts": {

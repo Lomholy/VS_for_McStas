@@ -13,6 +13,7 @@ const componentProvider_1 = require("./componentProvider"); // assuming this fil
 const mcdisplayCommand_1 = require("./mcdisplayCommand");
 const mcplotCommand_1 = require("./mcplotCommand");
 const global_params_1 = require("./global_params");
+const formatter_1 = require("./formatter");
 let client;
 function activate(context) {
     const serverPath = path.join(__dirname, '../../server/src', 'server.py');
@@ -72,6 +73,16 @@ function activate(context) {
     client = new node_1.LanguageClient("mcinstr language-server-id", "mcstas-language-server language server name", serverOptions, clientOptions);
     // Start the client. This will also launch the server
     client.start();
+    let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
+        provideDocumentFormattingEdits(document) {
+            const original = document.getText();
+            const formatted = (0, formatter_1.formatMetaLanguage)(original, document.uri.fsPath);
+            return [
+                vscode.TextEdit.replace(new vscode.Range(0, 0, document.lineCount, 0), formatted)
+            ];
+        }
+    });
+    context.subscriptions.push(provider);
 }
 function deactivate() {
     console.log("Deactivating extension");
