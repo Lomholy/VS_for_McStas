@@ -14,7 +14,7 @@ export function formatMetaLanguage(source: string, filePath: string): string {
 
     return source.replace(blockRegex, (match, leading, keyword, cCode) => {
         const formatted = formatCIndentation(cCode);
-        return `${leading}${keyword}\n%{\n${formatted}\n%}`;
+        return `${leading}${keyword}\n%{${formatted}%}`;
     });
 }
 
