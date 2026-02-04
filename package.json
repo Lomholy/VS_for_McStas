@@ -2,7 +2,7 @@
   "name": "vs-for-mcstas",
   "displayName": "VS_for_McStas",
   "description": "VS_for_McStas is an extension that aims to deliver McStas syntax highlighting, as well as GUI component insertion.",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lomholy/VS_for_McStas"
