@@ -101,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
 		provideDocumentFormattingEdits(document: vscode.TextDocument) {
 			const original = document.getText();
-			const formatted = formatMetaLanguage(original);
+			const formatted = formatMetaLanguage(original, document.uri.fsPath);
 
 			return [
 				vscode.TextEdit.replace(
