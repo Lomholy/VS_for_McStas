@@ -2,15 +2,22 @@
 # VS-for-McStas README
 
 VS-for-McStas is a VS Code extension that serves as both a syntax highlighter,
-component snippet writer, and language server.
-
+component snippet writer, language server and auto formatter for .instr and .comp files.
+ 
 The component snippet writer is only available if you have an installation of
 mcstas available through conda. If you do have mcstas available through conda
-and it does not show up, please submit an issue on the GitHub repository.
+and it does not show up, please submit an issue on the [Githup Repository](https://github.com/Lomholy/VS_for_McStas).
+
+In general, if you have any problems, desires for improvements etc. add an issue or your own fix on [the Github Repository](https://github.com/Lomholy/VS_for_McStas)!
+
 
 ## Known Issues
 
 ## Release Notes
+
+## 2.3.1
+Patch
+Fix extra indents happening on multiple auto formatting
 
 ## 2.3.0
 Minor
