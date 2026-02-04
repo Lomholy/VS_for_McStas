@@ -12,6 +12,11 @@ and it does not show up, please submit an issue on the GitHub repository.
 
 ## Release Notes
 
+## 2.3.0
+Minor
+Addition of a simple auto formatter, to handle indentation for the mcstas instruments and components.
+
+
 ## 2.2.3
 Patch
 Make ComponentProvider sort alphabetically.
