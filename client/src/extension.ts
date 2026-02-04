@@ -1,19 +1,20 @@
 import * as vscode from 'vscode';
 import { createTemplateInstr } from './createTemplateInstr';
-import {openCompDialog} from './dialogue'
+import { openCompDialog } from './dialogue'
 import { mcrunCommand } from './mrunCommand';
 import * as path from "path";
-import { workspace} from "vscode";
+import { workspace } from "vscode";
 import {
-  LanguageClient,
-  LanguageClientOptions,
-  ServerOptions,
-  TransportKind,
+	LanguageClient,
+	LanguageClientOptions,
+	ServerOptions,
+	TransportKind,
 } from "vscode-languageclient/node";
-import { Component, activateComponentViewer} from './componentProvider'; // assuming this file is componentProvider.ts
+import { Component, activateComponentViewer } from './componentProvider'; // assuming this file is componentProvider.ts
 import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 import { setExtensionRootPath } from './global_params';
+import { formatMetaLanguage } from './formatter';
 
 
 
@@ -21,12 +22,12 @@ let client: LanguageClient;
 export function activate(context: vscode.ExtensionContext) {
 	const serverPath = path.join(__dirname, '../../server/src', 'server.py');
 	console.log(serverPath)
-	
+
 	setExtensionRootPath(context.extensionPath);
 	activateComponentViewer(context); // Read the component tree
 	context.subscriptions.push(// Allow user to insert a component
-        vscode.commands.registerCommand('vs-for-mcstas.openCompDialog', openCompDialog)
-    );
+		vscode.commands.registerCommand('vs-for-mcstas.openCompDialog', openCompDialog)
+	);
 
 	vscode.commands.registerCommand('mcstas.openCompFile', async (resource: Component) => {
 		// Allow user to open each component file
@@ -55,54 +56,69 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
 		mcplotCommand();
 	});
-	
+
 	console.log(context.subscriptions);
 
 
 
 	// The server is implemented in node
-  	const serverModule = context.asAbsolutePath(
-    	path.join("server", "out", "server.js")
-  	);
+	const serverModule = context.asAbsolutePath(
+		path.join("server", "out", "server.js")
+	);
 
- 	// If the extension is launched in debug mode then the debug server options are used
-  	// Otherwise the run options are used
-  	const serverOptions: ServerOptions = {
-    	run: { module: serverModule, transport: TransportKind.stdio },
-    	debug: {
-      		module: serverModule,
-      		transport: TransportKind.stdio,
-    	},
-  	};
+	// If the extension is launched in debug mode then the debug server options are used
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.stdio },
+		debug: {
+			module: serverModule,
+			transport: TransportKind.stdio,
+		},
+	};
 
-  	// Options to control the language client
-  	const clientOptions: LanguageClientOptions = {
-    	// Register the server for all documents by default
-    	documentSelector: [
-    		{ scheme: 'file', language: 'mccode' },
+	// Options to control the language client
+	const clientOptions: LanguageClientOptions = {
+		// Register the server for all documents by default
+		documentSelector: [
+			{ scheme: 'file', language: 'mccode' },
 		],
-    	synchronize: {
-     	// Notify the server about file changes to '.clientrc files contained in the workspace
-      	fileEvents: workspace.createFileSystemWatcher("**/.clientrc"),
-    	},
-  	};
+		synchronize: {
+			// Notify the server about file changes to '.clientrc files contained in the workspace
+			fileEvents: workspace.createFileSystemWatcher("**/.clientrc"),
+		},
+	};
 
-  // Create the language client and start the client.
-  client = new LanguageClient(
-    "mcinstr language-server-id",
-    "mcstas-language-server language server name",
-    serverOptions,
-    clientOptions
-  );
+	// Create the language client and start the client.
+	client = new LanguageClient(
+		"mcinstr language-server-id",
+		"mcstas-language-server language server name",
+		serverOptions,
+		clientOptions
+	);
 
-  // Start the client. This will also launch the server
-  client.start();
+	// Start the client. This will also launch the server
+	client.start();
+	let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
+		provideDocumentFormattingEdits(document: vscode.TextDocument) {
+			const original = document.getText();
+			const formatted = formatMetaLanguage(original);
+
+			return [
+				vscode.TextEdit.replace(
+					new vscode.Range(0, 0, document.lineCount, 0),
+					formatted
+				)
+			];
+		}
+	});
+
+	context.subscriptions.push(provider);
 }
 
 export function deactivate(): Thenable<void> | undefined {
 	console.log("Deactivating extension")
-  if (!client) {
-    return undefined;
-  }
-  return client.stop();
+	if (!client) {
+		return undefined;
+	}
+	return client.stop();
 }
