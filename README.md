@@ -15,6 +15,11 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+
+## 2.3.2
+Patch
+Fix single liner error when the if statement/for loop is completely included in one line.
+
 ## 2.3.1
 Patch
 Fix extra indents happening on multiple auto formatting

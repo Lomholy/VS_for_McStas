@@ -92,7 +92,8 @@ function formatCIndentation(code) {
         const isFor = trimmed.startsWith("for");
         const hasParenPair = trimmed.includes("(") && trimmed.includes(")");
         const hasOpenBrace = trimmed.includes("{");
-        if ((isIf || isFor) && hasParenPair && !hasOpenBrace) {
+        const endsOnLine = trimmed.endsWith(";");
+        if ((isIf || isFor) && hasParenPair && !hasOpenBrace && !endsOnLine) {
             oneLiners.push(i);
         }
     }
