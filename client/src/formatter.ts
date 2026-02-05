@@ -86,8 +86,9 @@ export function formatCIndentation(code: string): string {
         const isFor = trimmed.startsWith("for");
         const hasParenPair = trimmed.includes("(") && trimmed.includes(")");
         const hasOpenBrace = trimmed.includes("{");
+        const endsOnLine = trimmed.endsWith(";");
 
-        if ((isIf || isFor) && hasParenPair && !hasOpenBrace) {
+        if ((isIf || isFor) && hasParenPair && !hasOpenBrace && !endsOnLine) {
             oneLiners.push(i);
         }
     }
