@@ -15,6 +15,11 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+## 2.4.0
+Minor
+Switch to using Microsoft formatter in VS code instead of homemade formatter.
+
+
 ## 2.3.3
 Patch
 Update autoformatter to double indent in parentheses, and not indent in trace share etc.
