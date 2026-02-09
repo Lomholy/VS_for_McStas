@@ -74,12 +74,10 @@ function activate(context) {
     // Start the client. This will also launch the server
     client.start();
     let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
-        provideDocumentFormattingEdits(document) {
-            const original = document.getText();
-            const formatted = (0, formatter_1.formatMetaLanguage)(original, document.uri.fsPath);
-            return [
-                vscode.TextEdit.replace(new vscode.Range(0, 0, document.lineCount, 0), formatted)
-            ];
+        provideDocumentFormattingEdits: async (doc) => {
+            const fullRange = new vscode.Range(new vscode.Position(0, 0), doc.lineAt(doc.lineCount - 1).range.end);
+            const formatted = await (0, formatter_1.formatMetaLanguage)(doc.getText(), doc.fileName);
+            return [vscode.TextEdit.replace(fullRange, formatted)];
         }
     });
     context.subscriptions.push(provider);
