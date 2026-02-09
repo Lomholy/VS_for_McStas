@@ -25,7 +25,7 @@ export function formatCIndentation(code: string): string {
     const n = lines.length;
 
     let inBlockComment = false;
-
+    const caseLines: number[] = [];
     const bracePairs: { start: number; end: number }[] = [];
     const parenPairs: { start: number; end: number }[] = [];
     const ifdefPairs: { start: number; end: number }[] = [];
@@ -53,6 +53,12 @@ export function formatCIndentation(code: string): string {
         const raw = lines[i];
         const codeOnly = stripComments(raw);
         const trimmed = codeOnly.trim();
+
+        // Detect switch cases
+        if (/^case\b/.test(trimmed) || /^default\s*:/.test(trimmed)) {
+            caseLines.push(i);
+        }
+
 
         // Braces & parentheses
         for (const ch of codeOnly) {
@@ -100,7 +106,7 @@ export function formatCIndentation(code: string): string {
         for (let i = p.start + 1; i < p.end; i++) indentLevel[i]++;
 
     for (const p of parenPairs)
-        for (let i = p.start + 1; i < p.end + 1; i++) indentLevel[i]+=2;
+        for (let i = p.start + 1; i < p.end + 1; i++) indentLevel[i] += 2;
 
     for (const p of ifdefPairs)
         for (let i = p.start + 1; i < p.end; i++) indentLevel[i]++;
@@ -123,6 +129,24 @@ export function formatCIndentation(code: string): string {
             indentLevel[j]++;
             break;
         }
+
+    // Indent the statements inside case/default
+    for (const idx of caseLines) {
+        // Now indent the following statements until:
+        // - next case/default
+        // - closing brace
+        for (let j = idx + 1; j < n; j++) {
+            const t = lines[j].trim();
+            if (t === "") continue;
+
+            // Stop at next case, default, or closing brace
+            if (/^case\b/.test(t) || /^default\s*:/.test(t) || t === "}") break;
+
+            // This is a statement under the case label
+            indentLevel[j]++;
+        }
+    }
+
 
     // ---------------- PASS 3: apply indentation ----------------
     const indentStr = "    ";
