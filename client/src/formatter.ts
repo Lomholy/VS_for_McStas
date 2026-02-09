@@ -100,14 +100,29 @@ export function formatCIndentation(code: string): string {
         for (let i = p.start + 1; i < p.end; i++) indentLevel[i]++;
 
     for (const p of parenPairs)
-        for (let i = p.start + 1; i < p.end; i++) indentLevel[i]++;
+        for (let i = p.start + 1; i < p.end + 1; i++) indentLevel[i]+=2;
 
     for (const p of ifdefPairs)
         for (let i = p.start + 1; i < p.end; i++) indentLevel[i]++;
 
     for (const idx of oneLiners)
-        for (let j = idx + 1; j < n; j++)
-            if (lines[j].trim() !== "") { indentLevel[j]++; break; }
+        for (let j = idx + 1; j < n; j++) {
+
+            const t = lines[j].trim();
+
+            // skip blank lines
+            if (t === "") continue;
+
+            // skip pure comment lines
+            if (t.startsWith("//")) {
+                indentLevel[j]++;  // indent the comment itself
+                continue;
+            }
+
+            // this is the actual controlled statement
+            indentLevel[j]++;
+            break;
+        }
 
     // ---------------- PASS 3: apply indentation ----------------
     const indentStr = "    ";
@@ -119,7 +134,7 @@ export function formatCIndentation(code: string): string {
 
         if (trimmed === "") { out.push(raw); continue; }
 
-        out.push(indentStr.repeat(indentLevel[i] + 1) + trimmed);
+        out.push(indentStr.repeat(indentLevel[i]) + trimmed);
     }
 
     return out.join("\n");
