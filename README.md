@@ -15,6 +15,12 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+## 2.3.3
+Patch
+Update autoformatter to double indent in parentheses, and not indent in trace share etc.
+
+Also fix bug in oneliners with comments
+
 
 ## 2.3.2
 Patch
