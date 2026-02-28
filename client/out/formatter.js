@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.captureInstrumentComponents = captureInstrumentComponents;
+exports.formatDefineInstrumentBlock = formatDefineInstrumentBlock;
 exports.formatMetaLanguage = formatMetaLanguage;
 const child_process = require("child_process");
 const formatConfig_1 = require("./formatConfig");
@@ -95,10 +97,7 @@ async function formatInnerLikePython(inner, clangFormatPath, assumeFilename) {
     formatted = unescapePrecompilerLines(formatted);
     return formatted;
 }
-// === MAIN exposed function: mirrors the Python formatter output ===
-async function formatMetaLanguage(source, filePath) {
-    // We now format ALL %{ %} blocks regardless of DECLARE/TRACE/... to match Python.
-    // (The original TS used keyword-gated regex; this change is intentional to match Python.)
+async function formatComponent(source) {
     const { clangFormatPath, styleFilePath } = (0, formatConfig_1.getFormatterConfig)();
     let result = '';
     let lastIndex = 0;
@@ -141,5 +140,168 @@ async function formatMetaLanguage(source, filePath) {
     // Append remainder
     result += source.slice(lastIndex);
     return result;
+}
+function captureInstrumentComponents(source) {
+    const COMPONENT_BLOCK_RE = /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)/gm;
+    const blocks = [];
+    let m;
+    while ((m = COMPONENT_BLOCK_RE.exec(source)) !== null) {
+        blocks.push({
+            header: m[1],
+            params: m[2],
+            fullMatch: m[0]
+        });
+    }
+    return blocks;
+}
+function normalizeHeaderLine(header) {
+    return header.trimEnd();
+}
+function splitParameters(input_params) {
+    // Remove white space
+    input_params = input_params.replace(/\s/g, "");
+    const s = input_params; // keep as-is to preserve spaces inside strings/braces
+    const params = [];
+    let current = '';
+    let inString = false; // inside double quotes
+    let braceDepth = 0; // { ... } nesting depth
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        // Handle entering/exiting string (")
+        if (ch === '"') {
+            // If previous char is a backslash, treat this as escaped quote
+            const escaped = i > 0 && s[i - 1] === '\\';
+            if (!escaped)
+                inString = !inString;
+            current += ch;
+            continue;
+        }
+        // Handle braces only when not in a string
+        if (!inString) {
+            if (ch === '{') {
+                braceDepth++;
+                current += ch;
+                continue;
+            }
+            if (ch === '}') {
+                // avoid negative depth if malformed
+                if (braceDepth > 0)
+                    braceDepth--;
+                current += ch;
+                continue;
+            }
+        }
+        // Split on commas only when not protected
+        if (ch === ',' && !inString && braceDepth === 0) {
+            const piece = current.trim();
+            if (piece.length > 0)
+                params.push(piece);
+            current = '';
+            continue;
+        }
+        current += ch;
+    }
+    // Push the final segment
+    const last = current.trim();
+    if (last.length > 0)
+        params.push(last);
+    return params;
+}
+function formatParamsTwoPerLine(params) {
+    const parameters = splitParameters(params);
+    if (parameters.length === 0)
+        return ""; // no whitespace if no params
+    const lines = [];
+    for (let i = 0; i < parameters.length; i += 2) {
+        const p1 = parameters[i];
+        const p2 = parameters[i + 1];
+        if (p2) {
+            lines.push(`  ${p1}, ${p2},`);
+        }
+        else {
+            lines.push(`  ${p1}`);
+        }
+    }
+    return lines.join("\n") + "\n";
+}
+function rebuildComponent(header, params) {
+    const h = normalizeHeaderLine(header);
+    const body = formatParamsTwoPerLine(params);
+    if (body === "")
+        return `${h})`;
+    return `${h}\n${body})`;
+}
+function captureDefineInstrument(source) {
+    const RE = /(^[ \t]*DEFINE[ \t]+INSTRUMENT\b[\s\S]*?\()([\s\S]*?)\)/m;
+    const m = RE.exec(source);
+    if (!m)
+        return null;
+    return {
+        header: m[1],
+        params: m[2],
+        fullMatch: m[0],
+        start: m.index,
+        end: RE.lastIndex
+    };
+}
+// --- 3) Format: one parameter per line ---
+function formatDefineParamsOnePerLine(params) {
+    const parts = splitParameters(params);
+    const indent = ' '.repeat(30);
+    let out = '';
+    for (let i = 0; i < parts.length; i += 1) {
+        const p1 = parts[i];
+        console.log(p1);
+        if (parts[i + 1])
+            out += (`${indent}${p1},\n`);
+        else
+            out += (`${indent}${p1}\n`);
+    }
+    return out;
+}
+// --- 4) Rebuild header + params ---
+function rebuildDefineInstrument(header, params) {
+    const h = header.trimEnd();
+    const body = formatDefineParamsOnePerLine(params);
+    if (body === '')
+        return `${h})`; // no params -> close immediately
+    return `${h}\n${body})`;
+}
+// --- 5) Apply replacement in the file ---
+function formatDefineInstrumentBlock(source) {
+    const cap = captureDefineInstrument(source);
+    if (!cap)
+        return source;
+    const newBlock = rebuildDefineInstrument(cap.header, cap.params);
+    // Replace the first occurrence only (the captured block)
+    return source.replace(cap.fullMatch, newBlock);
+}
+async function formatInstrument(source) {
+    const comps = captureInstrumentComponents(source);
+    // 2) Build replacements
+    const replacements = comps.map(c => {
+        const newBlock = rebuildComponent(c.header, c.params);
+        return { old: c.fullMatch, new: newBlock };
+    });
+    // 3) Apply replacements safely (reverse order)
+    let updated = source;
+    for (const r of replacements.reverse()) {
+        updated = updated.replace(r.old, r.new);
+    }
+    updated = formatDefineInstrumentBlock(updated);
+    return updated;
+}
+// === MAIN exposed function: mirrors the Python formatter output ===
+async function formatMetaLanguage(source, filePath) {
+    // We now format ALL %{ %} blocks regardless of DECLARE/TRACE/... to match Python.
+    // (The original TS used keyword-gated regex; this change is intentional to match Python.)
+    const { clangFormatPath, styleFilePath } = (0, formatConfig_1.getFormatterConfig)();
+    let ret;
+    console.log(filePath);
+    if (filePath.endsWith(".comp"))
+        ret = formatComponent(source);
+    else if (filePath.endsWith('.instr'))
+        ret = formatInstrument(source);
+    return ret;
 }
 //# sourceMappingURL=formatter.js.map
