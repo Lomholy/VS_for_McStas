@@ -15,11 +15,12 @@ import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 import { setExtensionRootPath } from './global_params';
 import { formatMetaLanguage } from './formatter';
+import { detectClangFormat } from './detectClang';
 
 
 
 let client: LanguageClient;
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	const serverPath = path.join(__dirname, '../../server/src', 'server.py');
 	console.log(serverPath)
 
@@ -56,6 +57,17 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
 		mcplotCommand();
 	});
+
+	vscode.commands.registerCommand('mcstas.openClangFormatHelp', () => {
+		vscode.window.showInformationMessage(
+			"To install clang-format:\n" +
+			"▶ macOS: brew install clang-format\n" +
+			"▶ Ubuntu/Debian: sudo apt install clang-format\n" +
+			"▶ Windows: Install LLVM from https://llvm.org\n" +
+			"After installation, restart VS Code."
+		);
+	});
+
 
 	console.log(context.subscriptions);
 
@@ -96,7 +108,7 @@ export function activate(context: vscode.ExtensionContext) {
 		clientOptions
 	);
 
-	// Start the client. This will also launch the server
+	// Start the Language server client. This will also launch the server
 	client.start();
 	let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
 		provideDocumentFormattingEdits: async (doc) => {
@@ -110,6 +122,23 @@ export function activate(context: vscode.ExtensionContext) {
 			return [vscode.TextEdit.replace(fullRange, formatted)];
 		}
 	});
+
+	// Check for clang-format on system
+	const cfg = vscode.workspace.getConfiguration('mcstas.formatter');
+	const userPath = cfg.get<string>('clangFormatPath')?.trim() || undefined;
+
+	const found = await detectClangFormat(userPath);
+	if (!found) {
+		vscode.window.showWarningMessage(
+			'McStas Formatter: "clang-format" was not found on your system. ' +
+			'Formatting will not work until installed. Click for installation help.',
+			'Show Instructions'
+		).then(action => {
+			if (action === 'Show Instructions') {
+				vscode.commands.executeCommand('mcstas.openClangFormatHelp');
+			}
+		});
+	}
 
 
 	context.subscriptions.push(provider);
