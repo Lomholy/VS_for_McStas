@@ -15,6 +15,10 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+## 2.4.1
+Patch
+Change formatter to clang-format with McStas' agreed upon .clang-format file.
+
 ## 2.4.0
 Minor
 Switch to using Microsoft formatter in VS code instead of homemade formatter.
