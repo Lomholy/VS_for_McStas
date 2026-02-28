@@ -31,9 +31,20 @@
           "type": "string",
           "default": "",
           "description": "The name of the used conda environment"
-        }
+        },
+        "mcstas.formatter.clangFormatPath": {
+            "type": "string",
+            "default": "clang-format",
+            "markdownDescription": "Path to the `clang-format` executable. If not set, it must be in PATH."
+          },
+          "mcstas.formatter.styleFile": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "Path used as `-assume-filename` for style discovery (typically your workspace `.clang-format`)."
+          }
       }
     },
+
     "viewsContainers": {
       "activitybar": [
         {

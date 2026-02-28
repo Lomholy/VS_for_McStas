@@ -76,7 +76,7 @@ function activate(context) {
     let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
         provideDocumentFormattingEdits: async (doc) => {
             const fullRange = new vscode.Range(new vscode.Position(0, 0), doc.lineAt(doc.lineCount - 1).range.end);
-            const formatted = await (0, formatter_1.formatMetaLanguage)(doc.getText(), doc.fileName);
+            const formatted = await (0, formatter_1.formatMetaLanguage)(doc.getText(), doc.fileName, context);
             return [vscode.TextEdit.replace(fullRange, formatted)];
         }
     });

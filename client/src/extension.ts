@@ -105,7 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
 				doc.lineAt(doc.lineCount - 1).range.end
 			);
 
-			const formatted = await formatMetaLanguage(doc.getText(), doc.fileName);
+			const formatted = await formatMetaLanguage(doc.getText(), doc.fileName, context);
 
 			return [vscode.TextEdit.replace(fullRange, formatted)];
 		}
