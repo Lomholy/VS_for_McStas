@@ -219,4 +219,4 @@ function setFormatterConfig(p) {
 function getFormatterConfig() {
     return { clangFormatPath: clangFormatPathGlobal, styleFilePath: styleFilePathGlobal };
 }
-//# sourceMappingURL=detectClang.js.map
+//# sourceMappingURL=formatConfig.js.map

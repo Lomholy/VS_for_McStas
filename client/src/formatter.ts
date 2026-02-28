@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import * as path from 'path';
+import { getFormatterConfig } from './formatConfig';
 
 const PRE_ESCAPE = '//__ESC__PRE';
 
@@ -110,23 +111,11 @@ async function formatInnerLikePython(
   return formatted;
 }
 
-/**
- * Retrieve configuration and resolve paths to ensure identical behavior to Python.
- * - clangFormatPath: required in PATH or via setting
- * - styleFile: pass as `-assume-filename` for clang-format style=file discovery
- */
-function resolveFormatterConfig(documentFilePath: string, context: vscode.ExtensionContext) {
-  const cfg = vscode.workspace.getConfiguration('mcstas.formatter');
-  const clangFormatPath = (cfg.get<string>('clangFormatPath') || 'clang-format').trim();
-  const styleFile = path.join(context.extensionPath, 'media', '.clang-format');
-  return { clangFormatPath, styleFile };
-}
-
 // === MAIN exposed function: mirrors the Python formatter output ===
-export async function formatMetaLanguage(source: string, filePath: string, context: vscode.ExtensionContext): Promise<string> {
+export async function formatMetaLanguage(source: string, filePath: string): Promise<string> {
   // We now format ALL %{ %} blocks regardless of DECLARE/TRACE/... to match Python.
   // (The original TS used keyword-gated regex; this change is intentional to match Python.)
-  const { clangFormatPath, styleFile } = resolveFormatterConfig(filePath, context);
+   const { clangFormatPath, styleFilePath } = getFormatterConfig();
 
   let result = '';
   let lastIndex = 0;
@@ -146,7 +135,7 @@ export async function formatMetaLanguage(source: string, filePath: string, conte
     }
 
     // Format inner exactly like the Python script
-    let formattedInner = await formatInnerLikePython(inner, clangFormatPath, styleFile);
+    let formattedInner = await formatInnerLikePython(inner, clangFormatPath, styleFilePath);
 
     // Remove exactly one trailing newline (if present) so we can control placement
     let trailingNL = '';

@@ -216,5 +216,10 @@
   },
   "dependencies": {
     "vscode-languageclient": "^8.1.0"
+  },
+  "mcstas.formatter.clangFormatPath": {
+    "type": "string",
+    "default": "clang-format",
+    "markdownDescription": "Path to clang-format executable if not in PATH."
   }
 }

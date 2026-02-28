@@ -1,9 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.formatMetaLanguage = formatMetaLanguage;
-const vscode = require("vscode");
 const child_process = require("child_process");
-const path = require("path");
+const formatConfig_1 = require("./formatConfig");
 const PRE_ESCAPE = '//__ESC__PRE';
 // === Helper: run clang-format with style=file and assume-filename ===
 function runClangFormat(code, clangFormatPath, assumeFilename) {
@@ -96,22 +95,11 @@ async function formatInnerLikePython(inner, clangFormatPath, assumeFilename) {
     formatted = unescapePrecompilerLines(formatted);
     return formatted;
 }
-/**
- * Retrieve configuration and resolve paths to ensure identical behavior to Python.
- * - clangFormatPath: required in PATH or via setting
- * - styleFile: pass as `-assume-filename` for clang-format style=file discovery
- */
-function resolveFormatterConfig(documentFilePath, context) {
-    const cfg = vscode.workspace.getConfiguration('mcstas.formatter');
-    const clangFormatPath = (cfg.get('clangFormatPath') || 'clang-format').trim();
-    const styleFile = path.join(context.extensionPath, 'media', '.clang-format');
-    return { clangFormatPath, styleFile };
-}
 // === MAIN exposed function: mirrors the Python formatter output ===
-async function formatMetaLanguage(source, filePath, context) {
+async function formatMetaLanguage(source, filePath) {
     // We now format ALL %{ %} blocks regardless of DECLARE/TRACE/... to match Python.
     // (The original TS used keyword-gated regex; this change is intentional to match Python.)
-    const { clangFormatPath, styleFile } = resolveFormatterConfig(filePath, context);
+    const { clangFormatPath, styleFilePath } = (0, formatConfig_1.getFormatterConfig)();
     let result = '';
     let lastIndex = 0;
     let m;
@@ -126,7 +114,7 @@ async function formatMetaLanguage(source, filePath, context) {
             continue;
         }
         // Format inner exactly like the Python script
-        let formattedInner = await formatInnerLikePython(inner, clangFormatPath, styleFile);
+        let formattedInner = await formatInnerLikePython(inner, clangFormatPath, styleFilePath);
         // Remove exactly one trailing newline (if present) so we can control placement
         let trailingNL = '';
         if (formattedInner.endsWith('\n')) {
