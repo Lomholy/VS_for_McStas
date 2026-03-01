@@ -174,7 +174,7 @@ export interface InstrComponentCapture {
 
 export function captureInstrumentComponents(source: string): InstrComponentCapture[] {
   const COMPONENT_BLOCK_RE =
-    /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)/gm;
+    /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)(?=\s*(?:AT\b|EXTEND\b)|$)/gm;
 
   const blocks: InstrComponentCapture[] = [];
   let m: RegExpExecArray | null;
@@ -197,12 +197,13 @@ function normalizeHeaderLine(header: string): string {
 
 function splitParameters(input_params: string): string[] {
   // Remove white space
-  input_params = input_params.replace(/\s/g, "")
+  // input_params = input_params.replace(/\s/g, "")
   const s = input_params; // keep as-is to preserve spaces inside strings/braces
   const params: string[] = [];
   let current = '';
   let inString = false;       // inside double quotes
   let braceDepth = 0;         // { ... } nesting depth
+  let parDepth = 0;
 
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
@@ -230,9 +231,22 @@ function splitParameters(input_params: string): string[] {
         continue;
       }
     }
+    if (!inString) {
+      if (ch === '(') {
+        parDepth++;
+        current += ch;
+        continue;
+      }
+      if (ch === ')') {
+        // avoid negative depth if malformed
+        if (parDepth > 0) parDepth--;
+        current += ch;
+        continue;
+      }
+    }
 
     // Split on commas only when not protected
-    if (ch === ',' && !inString && braceDepth === 0) {
+    if (ch === ',' && !inString && braceDepth === 0 && parDepth == 0) {
       const piece = current.trim();
       if (piece.length > 0) params.push(piece);
       current = '';
@@ -256,11 +270,13 @@ function formatParamsTwoPerLine(params: string): string {
   for (let i = 0; i < parameters.length; i += 2) {
     const p1 = parameters[i];
     const p2 = parameters[i + 1];
-
-    if (p2) {
-      lines.push(`  ${p1}, ${p2},`);
+    const p3 = parameters[i + 2];
+    if (p3) {
+      lines.push(`    ${p1}, ${p2},`);
+    } else if (p2) {
+      lines.push(`    ${p1}, ${p2}`);
     } else {
-      lines.push(`  ${p1}`);
+      lines.push(`    ${p1}`);
     }
   }
 
