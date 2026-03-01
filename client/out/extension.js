@@ -14,8 +14,9 @@ const mcdisplayCommand_1 = require("./mcdisplayCommand");
 const mcplotCommand_1 = require("./mcplotCommand");
 const global_params_1 = require("./global_params");
 const formatter_1 = require("./formatter");
+const formatConfig_1 = require("./formatConfig");
 let client;
-function activate(context) {
+async function activate(context) {
     const serverPath = path.join(__dirname, '../../server/src', 'server.py');
     console.log(serverPath);
     (0, global_params_1.setExtensionRootPath)(context.extensionPath);
@@ -46,6 +47,13 @@ function activate(context) {
     vscode.commands.registerCommand('mcstas.mcplot', () => {
         (0, mcplotCommand_1.mcplotCommand)();
     });
+    vscode.commands.registerCommand('mcstas.openClangFormatHelp', () => {
+        vscode.window.showInformationMessage("To install clang-format:\n" +
+            "▶ macOS: brew install clang-format\n" +
+            "▶ Ubuntu/Debian: sudo apt install clang-format\n" +
+            "▶ Windows: Install LLVM from https://llvm.org\n" +
+            "After installation, restart VS Code.");
+    });
     console.log(context.subscriptions);
     // The server is implemented in node
     const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
@@ -71,15 +79,32 @@ function activate(context) {
     };
     // Create the language client and start the client.
     client = new node_1.LanguageClient("mcinstr language-server-id", "mcstas-language-server language server name", serverOptions, clientOptions);
-    // Start the client. This will also launch the server
+    // Check for clang-format on system
+    const cfg = vscode.workspace.getConfiguration('mcstas.formatter');
+    const userPath = cfg.get('clangFormatPath')?.trim() || undefined;
+    const found = await (0, formatConfig_1.detectClangFormat)({
+        userPath,
+        // If you want to try a specific env name first (optional):
+        // condaEnvName: 'myenv',
+        log: (m) => console.log(`[mcstas] ${m}`)
+    });
+    if (!found) {
+        vscode.window.showWarningMessage('McStas Formatter: Could not find "clang-format". If you are using conda/mamba, ensure the environment is active or set mcstas.formatter.clangFormatPath.', 'Installation Help').then(btn => {
+            if (btn === 'Installation Help') {
+                vscode.commands.executeCommand('mcstas.openClangFormatHelp');
+            }
+        });
+    }
+    const clangFormatResolved = found ?? (userPath || 'clang-format');
+    const styleFilePath = path.join(context.extensionPath, 'media', '.clang-format');
+    (0, formatConfig_1.setFormatterConfig)({ clangFormatPath: clangFormatResolved, styleFilePath });
+    // Start the language server client, and add the formatter.
     client.start();
     let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
-        provideDocumentFormattingEdits(document) {
-            const original = document.getText();
-            const formatted = (0, formatter_1.formatMetaLanguage)(original, document.uri.fsPath);
-            return [
-                vscode.TextEdit.replace(new vscode.Range(0, 0, document.lineCount, 0), formatted)
-            ];
+        provideDocumentFormattingEdits: async (doc) => {
+            const fullRange = new vscode.Range(new vscode.Position(0, 0), doc.lineAt(doc.lineCount - 1).range.end);
+            const formatted = await (0, formatter_1.formatMetaLanguage)(doc.getText(), doc.fileName);
+            return [vscode.TextEdit.replace(fullRange, formatted)];
         }
     });
     context.subscriptions.push(provider);

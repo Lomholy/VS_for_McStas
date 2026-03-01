@@ -2,7 +2,7 @@
   "name": "vs-for-mcstas",
   "displayName": "VS_for_McStas",
   "description": "VS_for_McStas is an extension that aims to deliver McStas syntax highlighting, as well as GUI component insertion.",
-  "version": "2.3.1",
+  "version": "2.5.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lomholy/VS_for_McStas"
@@ -31,6 +31,16 @@
           "type": "string",
           "default": "",
           "description": "The name of the used conda environment"
+        },
+        "mcstas.formatter.clangFormatPath": {
+          "type": "string",
+          "default": "clang-format",
+          "markdownDescription": "Path to the `clang-format` executable. If not set, it must be in PATH."
+        },
+        "mcstas.formatter.styleFile": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path used as `-assume-filename` for style discovery (typically your workspace `.clang-format`)."
         }
       }
     },
@@ -113,6 +123,10 @@
       {
         "command": "mcstas.chooseMcStasResourceFolder",
         "title": "Set McStas Folder"
+      },
+      {
+        "command": "mcstas.openClangFormatHelp",
+        "title": "McStas: How to Install clang-format"
       }
     ],
     "menus": {
@@ -202,5 +216,10 @@
   },
   "dependencies": {
     "vscode-languageclient": "^8.1.0"
+  },
+  "mcstas.formatter.clangFormatPath": {
+    "type": "string",
+    "default": "clang-format",
+    "markdownDescription": "Path to clang-format executable if not in PATH."
   }
 }

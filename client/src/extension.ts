@@ -15,11 +15,12 @@ import { mcdisplayCommand } from './mcdisplayCommand';
 import { mcplotCommand } from './mcplotCommand';
 import { setExtensionRootPath } from './global_params';
 import { formatMetaLanguage } from './formatter';
+import { detectClangFormat, setFormatterConfig } from './formatConfig';
 
 
 
 let client: LanguageClient;
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	const serverPath = path.join(__dirname, '../../server/src', 'server.py');
 	console.log(serverPath)
 
@@ -56,6 +57,17 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.registerCommand('mcstas.mcplot', () => {
 		mcplotCommand();
 	});
+
+	vscode.commands.registerCommand('mcstas.openClangFormatHelp', () => {
+		vscode.window.showInformationMessage(
+			"To install clang-format:\n" +
+			"▶ macOS: brew install clang-format\n" +
+			"▶ Ubuntu/Debian: sudo apt install clang-format\n" +
+			"▶ Windows: Install LLVM from https://llvm.org\n" +
+			"After installation, restart VS Code."
+		);
+	});
+
 
 	console.log(context.subscriptions);
 
@@ -96,21 +108,49 @@ export function activate(context: vscode.ExtensionContext) {
 		clientOptions
 	);
 
-	// Start the client. This will also launch the server
+	// Check for clang-format on system
+	const cfg = vscode.workspace.getConfiguration('mcstas.formatter');
+	const userPath = cfg.get<string>('clangFormatPath')?.trim() || undefined;
+
+
+	const found = await detectClangFormat({
+		userPath,
+		// If you want to try a specific env name first (optional):
+		// condaEnvName: 'myenv',
+		log: (m) => console.log(`[mcstas] ${m}`)
+	});
+
+	if (!found) {
+		vscode.window.showWarningMessage(
+			'McStas Formatter: Could not find "clang-format". If you are using conda/mamba, ensure the environment is active or set mcstas.formatter.clangFormatPath.',
+			'Installation Help'
+		).then(btn => {
+			if (btn === 'Installation Help') {
+				vscode.commands.executeCommand('mcstas.openClangFormatHelp');
+			}
+		});
+	}
+	const clangFormatResolved = found ?? (userPath || 'clang-format');
+	const styleFilePath = path.join(context.extensionPath, 'media', '.clang-format');
+	setFormatterConfig({ clangFormatPath: clangFormatResolved, styleFilePath });
+	// Start the language server client, and add the formatter.
 	client.start();
 	let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
-		provideDocumentFormattingEdits(document: vscode.TextDocument) {
-			const original = document.getText();
-			const formatted = formatMetaLanguage(original, document.uri.fsPath);
+		provideDocumentFormattingEdits: async (doc) => {
+			const fullRange = new vscode.Range(
+				new vscode.Position(0, 0),
+				doc.lineAt(doc.lineCount - 1).range.end
+			);
 
-			return [
-				vscode.TextEdit.replace(
-					new vscode.Range(0, 0, document.lineCount, 0),
-					formatted
-				)
-			];
+			const formatted = await formatMetaLanguage(doc.getText(), doc.fileName);
+
+			return [vscode.TextEdit.replace(fullRange, formatted)];
 		}
 	});
+
+
+
+
 
 	context.subscriptions.push(provider);
 }
