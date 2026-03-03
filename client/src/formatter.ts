@@ -174,7 +174,7 @@ export interface InstrComponentCapture {
 
 export function captureInstrumentComponents(source: string): InstrComponentCapture[] {
   const COMPONENT_BLOCK_RE =
-    /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)(?=\s*(?:AT\b|EXTEND\b)|$)/gm;
+    /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)(?=\s*(?:AT\b|WHEN\b)|$)/gm;
 
   const blocks: InstrComponentCapture[] = [];
   let m: RegExpExecArray | null;

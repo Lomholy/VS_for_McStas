@@ -142,7 +142,7 @@ async function formatComponent(source) {
     return result;
 }
 function captureInstrumentComponents(source) {
-    const COMPONENT_BLOCK_RE = /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)(?=\s*(?:AT\b|EXTEND\b)|$)/gm;
+    const COMPONENT_BLOCK_RE = /(^[ \t]*COMPONENT[\s\S]*?\()([\s\S]*?)\)(?=\s*(?:AT\b|WHEN\b)|$)/gm;
     const blocks = [];
     let m;
     while ((m = COMPONENT_BLOCK_RE.exec(source)) !== null) {

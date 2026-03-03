@@ -21,6 +21,10 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+## 2.5.1
+Patch
+Fix wrong formatting with WHEN statements in instrument files.
+
 ## 2.5.0
 Minor
 Add formatter of instrument files
