@@ -21,6 +21,10 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+## 2.5.2
+Patch
+Update of Component dict using the newest mcstasscript reader, such that all current components can be read and used by the language server.
+
 ## 2.5.1
 Patch
 Fix wrong formatting with WHEN statements in instrument files.
