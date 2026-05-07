@@ -1,7 +1,7 @@
 
-# VS-for-McStas README
+# VS_for_McStas README
 
-VS-for-McStas is a VS Code extension that serves as both a syntax highlighter,
+VS_for_McStas is a VS Code extension that serves as both a syntax highlighter,
 component snippet writer, language server and auto formatter for .instr and .comp files.
 
 The syntax highlighting and language server are on by default when the extension is installed.
