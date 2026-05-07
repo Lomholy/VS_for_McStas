@@ -21,6 +21,9 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 ## Release Notes
 
+## 2.5.3 
+Fix naming errors
+
 ## 2.5.2
 Patch
 Update of Component dict using the newest mcstasscript reader, such that all current components can be read and used by the language server.
