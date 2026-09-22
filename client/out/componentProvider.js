@@ -74,7 +74,7 @@ function getCandidateCondaEnvs() {
     return Array.from(new Set(candidates));
 }
 async function activateComponentViewer(context) {
-    const jsonPath = context.asAbsolutePath('./server/src/methods/textDocument/mcstas-comps.json');
+    const jsonPath = context.asAbsolutePath('./server/python/src/mcstas_ls/data/mcstas-comps.json');
     vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(jsonPath, context));
 }
 class ComponentProvider {
