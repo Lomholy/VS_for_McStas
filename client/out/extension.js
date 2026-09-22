@@ -54,9 +54,9 @@ async function activate(context) {
             "After installation, restart VS Code.");
     });
     vscode.commands.registerCommand('mcstas.openPythonServerHelp', () => {
-        vscode.window.showInformationMessage("To install the McStas language server:\n" +
-            "▶ cd server/python (in the VS_for_McStas source, or wherever it was installed)\n" +
-            "▶ pip install -e \".[dev]\"\n" +
+        vscode.window.showInformationMessage("This extension normally installs its Python language server (mcstas_ls) automatically the first time it can't find one. If that failed:\n" +
+            "▶ Most likely cause: pip refused to install outside a virtualenv or conda env (\"externally-managed-environment\", common on Homebrew/Debian/Ubuntu Python). Create a virtualenv or conda env, activate it (or set componentViewer.condaEnv to it), and restart VS Code.\n" +
+            "▶ To install manually instead: cd server/python (in the VS_for_McStas source, or wherever it was installed), then run: pip install \".[dev]\"\n" +
             "Make sure the same Python environment is on PATH, or active as a conda/mamba env, when VS Code starts.\n" +
             "After installation, restart VS Code.");
     });
@@ -65,15 +65,25 @@ async function activate(context) {
     // pygls. Find an interpreter that has the mcstas_ls package installed --
     // same PATH -> conda/mamba run -> conda env prefix probing strategy as
     // detectClangFormat below, reusing componentViewer.condaEnv rather than
-    // adding a new setting.
+    // adding a new setting. If none is found, install mcstas_ls (from the
+    // server/python bundled with this extension) rather than just asking
+    // the user to do it themselves.
     const componentViewerCfg = vscode.workspace.getConfiguration('componentViewer');
     const condaEnvName = componentViewerCfg.get('condaEnv')?.trim() || undefined;
-    const pythonServerCommand = await (0, detectPythonServer_1.detectPythonServerCommand)({
+    const pythonServerLog = (m) => console.log(`[mcstas] ${m}`);
+    let pythonServerCommand = await (0, detectPythonServer_1.detectPythonServerCommand)({
         condaEnvName,
-        log: (m) => console.log(`[mcstas] ${m}`)
+        log: pythonServerLog
     });
     if (!pythonServerCommand) {
-        vscode.window.showWarningMessage('McStas Language Server: Could not find a Python interpreter with "mcstas_ls" installed. Hover and completion will not work until one is found. If you are using conda/mamba, ensure the environment is active or set componentViewer.condaEnv.', 'Installation Help').then(btn => {
+        const serverSourcePath = context.asAbsolutePath(path.join('server', 'python'));
+        pythonServerCommand = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'McStas Language Server: installing Python package (pip install)...' }, () => (0, detectPythonServer_1.installPythonServer)(serverSourcePath, { condaEnvName, log: pythonServerLog }));
+        if (pythonServerCommand) {
+            vscode.window.showInformationMessage('McStas Language Server: installed the Python package successfully.');
+        }
+    }
+    if (!pythonServerCommand) {
+        vscode.window.showWarningMessage('McStas Language Server: Could not find or install a Python interpreter with "mcstas_ls". Hover and completion will not work until one is found. If you are using conda/mamba, ensure the environment is active or set componentViewer.condaEnv. On some systems (Homebrew/Debian/Ubuntu Python), pip refuses to install outside a virtualenv or conda env ("externally-managed-environment") -- create one and activate it, or point componentViewer.condaEnv at it.', 'Installation Help').then(btn => {
             if (btn === 'Installation Help') {
                 vscode.commands.executeCommand('mcstas.openPythonServerHelp');
             }

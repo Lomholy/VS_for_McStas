@@ -27,9 +27,12 @@ rationale, and what's still open (packaging/distribution, mainly).
 - [x] Fixed an unrelated pre-existing bug found along the way: `npm test`
       failed before running a single test, because `@vscode/test-electron`
       couldn't find modern VS Code's macOS executable (see `PLAN.md`)
-- [ ] Packaging/distribution (plan step 4): nothing publishes or bundles
-      this package for end users yet -- see "Setup" below and install it
-      yourself into whichever Python environment the extension should find
+- [x] Packaging/distribution (plan step 4), first cut: `extension.ts` now
+      auto-installs this package via pip the first time it can't find an
+      interpreter with `mcstas_ls` already on it (see
+      `client/src/detectPythonServer.ts`'s `installPythonServer`), instead
+      of just telling the user to run `pip install` themselves. Manual
+      install below still works and is what contributors should use.
 
 ## Setup
 

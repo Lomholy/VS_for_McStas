@@ -2,18 +2,18 @@
 
 ## Status
 
-Steps 1–3 below are done: hover.py/completion.py are ported and tested,
-and `extension.ts` now launches the Python server instead of the Node one.
-This has been verified for real: `npm run compile` passes cleanly, and a
-real VS Code 1.138.0 Extension Development Host (launched directly, with a
-Python environment that has `mcstas_ls` installed active on `PATH`) shows
-a clean `initialize` handshake between the client and the Python server,
-with no connection errors. Steps 4–6 (packaging/distribution, the rollout
-toggle, and automated old-vs-new parity testing) are not — see `README.md`
-for the current checklist. In particular, nothing publishes or bundles
-`mcstas_ls` yet: a user has to `pip install -e server/python` themselves
-into whichever Python environment they want the extension to find (see
-step 4).
+Steps 1–4 below are done, in first-cut form for step 4: hover.py/completion.py
+are ported and tested, `extension.ts` launches the Python server instead of
+the Node one, and it now auto-installs `mcstas_ls` via pip the first time it
+can't find an interpreter that already has it, instead of just telling the
+user to do it themselves. This has been verified for real: `npm run compile`
+passes cleanly; a real VS Code 1.138.0 Extension Development Host (launched
+directly) showed a clean `initialize` handshake between the client and the
+Python server with no connection errors; and the auto-install path was
+verified end to end against a genuinely old, nothing-installed system Python
+(pip 21.2.4 -- see step 4 for a real bug that setup caught). Steps 5–6 (the
+rollout toggle and automated old-vs-new parity testing) are not done — see
+`README.md` for the current checklist.
 
 ## What exists today
 
@@ -137,10 +137,44 @@ skips in favor of the plan's literal "swap" wording.
 
 - **Require a system Python** (autodetected the same way `clang-format` is
   today) — consistent with how the rest of the extension already shells
-  out to McStas tools, minimal CI work. *Recommended.*
+  out to McStas tools, minimal CI work. *Recommended, and now implemented*:
+  see below.
 - **Bundle a frozen binary** (PyInstaller) per platform inside the
   `.vsix` — self-contained but adds a real cross-platform build matrix for
   not much benefit here.
+
+**Implemented:** rather than stopping at detection and telling the user to
+run `pip install` themselves, `extension.ts` now calls
+`installPythonServer()` (new, in `detectPythonServer.ts`) when
+`detectPythonServerCommand()` finds nothing, which `pip install`s
+`mcstas_ls` from the `server/python` directory bundled with the extension
+into whichever interpreter looks like the right target -- an explicitly
+configured conda/mamba env first, then a bare PATH interpreter, then any
+discovered conda env prefix -- and re-checks. This runs under a VS Code
+progress notification (it's not instant) and a success message confirms
+when it worked.
+
+Found and worked around a real failure mode while testing this against a
+genuinely old system Python (pip 21.2.4, the version Apple ships with the
+Xcode Command Line Tools -- likely common among the actual target
+audience, not just this sandbox): that pip mishandles a
+`pyproject.toml`-only project's metadata and silently builds and installs
+an empty package literally named `UNKNOWN`, with none of the real code or
+declared dependencies, reporting success the whole time. `pip install`'s
+own exit code cannot be trusted to mean "the right thing got installed"
+here. `installPythonServer()` now checks the target's pip version first
+and upgrades it before installing if it's old enough to hit this (roughly
+pip <23), and separately, the `import mcstas_ls.server` re-check after
+every install attempt (already there for other reasons) means even an
+unanticipated variant of this failure can't be silently reported as
+success to the user.
+
+Deliberately not attempted: passing `--break-system-packages` to force
+past a PEP 668 "externally-managed-environment" error on Homebrew/Debian/
+Ubuntu system Pythons. That guard exists to protect the system Python
+installation; the correct fix is a virtualenv or conda env (which
+`componentViewer.condaEnv` already supports pointing at), not overriding
+the guard. The failure warning tells the user this.
 
 ### 5. Rollout safety net
 
