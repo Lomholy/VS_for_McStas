@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 
 export async function mcplotCommand(){
     // Prompt user to pick a folder

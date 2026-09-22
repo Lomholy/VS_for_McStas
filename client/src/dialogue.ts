@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as data from '../../server/python/src/mcstas_ls/data/mcstas-comps.json'
 
-const os = require('os');
 export async function openCompDialog(filePath: string) {
     const comp_json = getcomp(filePath);
     const header = comp_json.name
@@ -33,9 +32,6 @@ export async function openCompDialog(filePath: string) {
 
     panel.webview.onDidReceiveMessage((message) => {
         const { command, parameters, oldParameters } = message;
-
-        const original: ComponentParameterInfo[] = message.oldParameters
-
 
         if (command === 'submit' || command === 'writeComponent') {
             // Your existing logic

@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.openCompDialog = openCompDialog;
 const vscode = require("vscode");
 const data = require("../../server/python/src/mcstas_ls/data/mcstas-comps.json");
-const os = require('os');
 async function openCompDialog(filePath) {
     const comp_json = getcomp(filePath);
     const header = comp_json.name;
@@ -19,7 +18,6 @@ async function openCompDialog(filePath) {
     panel.webview.html = getWebviewContent(header, parameters, units, comments);
     panel.webview.onDidReceiveMessage((message) => {
         const { command, parameters, oldParameters } = message;
-        const original = message.oldParameters;
         if (command === 'submit' || command === 'writeComponent') {
             // Your existing logic
             const instanceName = parameters['instanceName'] || 'my_component';

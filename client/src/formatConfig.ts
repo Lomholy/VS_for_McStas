@@ -1,7 +1,6 @@
 import * as child_process from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import * as os from 'os';
 
 type DetectOptions = {
   // Optional user hint (from settings)
@@ -122,7 +121,6 @@ async function tryCondaPrefixBins(log?: (m: string) => void): Promise<string | n
     process.env.MAMBA_ROOT_PREFIX, // often base install
   ].filter(Boolean) as string[];
 
-  const pathSep = path.sep;
   const binNames = isWindows() ? ['Library\\bin', 'Scripts', 'bin'] : ['bin'];
 
   for (const prefix of prefixVars) {
