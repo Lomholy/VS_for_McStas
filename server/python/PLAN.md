@@ -2,9 +2,18 @@
 
 ## Status
 
-This PR adds a scaffold only (see `README.md` for the checklist). It does
-not touch the existing Node server in `../` or wire the extension client to
-launch Python yet.
+Steps 1–4 below are done, in first-cut form for step 4: hover.py/completion.py
+are ported and tested, `extension.ts` launches the Python server instead of
+the Node one, and it now auto-installs `mcstas_ls` via pip the first time it
+can't find an interpreter that already has it, instead of just telling the
+user to do it themselves. This has been verified for real: `npm run compile`
+passes cleanly; a real VS Code 1.138.0 Extension Development Host (launched
+directly) showed a clean `initialize` handshake between the client and the
+Python server with no connection errors; and the auto-install path was
+verified end to end against a genuinely old, nothing-installed system Python
+(pip 21.2.4 -- see step 4 for a real bug that setup caught). Steps 5–6 (the
+rollout toggle and automated old-vs-new parity testing) are not done — see
+`README.md` for the current checklist.
 
 ## What exists today
 
@@ -71,31 +80,101 @@ All of this is pure logic, no architecture decisions needed:
   behavior for parity and documents it in a comment and a test; worth a
   follow-up fix in a later phase, in whichever language ends up owning that
   logic by then.
-- `hover.py` — direct port of the regex + Markdown builder. Not yet done.
-- `completion.py` — the biggest piece; swap `fuzzy-search` for `rapidfuzz`
+- `hover.py` — direct port of the regex + Markdown builder. **Done.**
+- `completion.py` — the biggest piece; swaps `fuzzy-search` for `rapidfuzz`
   (maintained, fast, simple `pip install`). The component-context detection
-  and snippet-building logic ports mechanically. Not yet done.
-- Copy `mcstas-comps.json` unchanged. **Done in this PR.**
+  and snippet-building logic ported mechanically. **Done.** Fuzzy ranking is
+  not byte-for-byte identical to the TS server's `fuzzy-search`-based
+  ranking — different library, different scoring function — but the
+  behavior (rank by label/detail match quality, preselect the top hit) is
+  the same.
+- Copy `mcstas-comps.json` unchanged. **Done.**
 
 ### 3. Client wiring (small TS diff, not a rewrite)
 
-In `extension.ts`, `ServerOptions` currently launches `server/out/server.js`
-as a Node module. Swap the `run`/`debug` blocks to a
-`{command, args, transport: TransportKind.stdio}` shape pointing at a
-Python interpreter + the new server script. Reuse the conda-env detection
-already present (`componentViewer.condaEnv` setting, `checkCondaEnv.js`) to
-locate that interpreter — same pattern already used for `clang-format` and
-for `mcrun`/`mcdisplay`/`mcplot`, so no new config surface is needed. Not
-done in this PR.
+**Done.** `extension.ts`'s `ServerOptions` now launches
+`{command, args, transport: TransportKind.stdio}` (a Python interpreter
+running `-m mcstas_ls.server`) instead of `server/out/server.js` as a Node
+module. `client/src/detectPythonServer.ts` finds that interpreter via the
+same PATH -> conda/mamba `run` -> conda env prefix probing strategy as
+`detectClangFormat` in `formatConfig.ts`, reusing the existing
+`componentViewer.condaEnv` setting rather than adding a new one, and a
+`mcstas.openPythonServerHelp` command/warning mirrors the existing
+clang-format install-help UX for when no interpreter with `mcstas_ls`
+installed is found.
+
+Resolved: Node.js is now available in this environment (installed via
+Homebrew). `npm run compile` passes cleanly, and the compiled
+`client/out/extension.js`/`client/out/detectPythonServer.js` (checked into
+git, per this repo's build setup) are committed alongside the source so
+they're no longer stale. Beyond compiling, this was verified in a real VS
+Code 1.138.0 Extension Development Host, launched directly with
+`--extensionDevelopmentPath` pointed at this branch and a Python
+environment with `mcstas_ls` installed active on `PATH`: the extension
+activated, `detectPythonServer.ts` found the interpreter, and the
+extension host log shows a clean `initialize` request/response exchange
+between the real VS Code client and the Python server with no connection
+errors -- e.g. `client_info=ClientInfo(name='Visual Studio Code',
+version='1.138.0')` followed by the server's capabilities response.
+
+While setting this up, `npm test` turned out to be broken independent of
+this PR: `@vscode/test-electron@2.4.1` looks for a macOS executable named
+`Electron`, but VS Code 1.110+ builds name it `Code` (a known upstream bug,
+fixed in `@vscode/test-electron@3.1.0` by reading `CFBundleExecutable`
+from `Info.plist` instead of hardcoding the name). Bumped the dependency
+and confirmed `npx vscode-test` now runs the existing test suite for real
+("1 passing", exit code 0) instead of failing with `spawn ... ENOENT`
+before a single test runs. Also added `.vscode-test/` to `.gitignore` --
+running the test suite downloads a ~900MB VS Code build into that
+directory, and nothing previously stopped it from being committed.
+
+Also not addressed here: `server/out/server.js` (the Node server) is no
+longer launched by default, but its source is still in the repo -- see
+"Rollout safety net" below for the originally-planned toggle, which this PR
+skips in favor of the plan's literal "swap" wording.
 
 ### 4. Packaging — the one real decision point
 
 - **Require a system Python** (autodetected the same way `clang-format` is
   today) — consistent with how the rest of the extension already shells
-  out to McStas tools, minimal CI work. *Recommended.*
+  out to McStas tools, minimal CI work. *Recommended, and now implemented*:
+  see below.
 - **Bundle a frozen binary** (PyInstaller) per platform inside the
   `.vsix` — self-contained but adds a real cross-platform build matrix for
   not much benefit here.
+
+**Implemented:** rather than stopping at detection and telling the user to
+run `pip install` themselves, `extension.ts` now calls
+`installPythonServer()` (new, in `detectPythonServer.ts`) when
+`detectPythonServerCommand()` finds nothing, which `pip install`s
+`mcstas_ls` from the `server/python` directory bundled with the extension
+into whichever interpreter looks like the right target -- an explicitly
+configured conda/mamba env first, then a bare PATH interpreter, then any
+discovered conda env prefix -- and re-checks. This runs under a VS Code
+progress notification (it's not instant) and a success message confirms
+when it worked.
+
+Found and worked around a real failure mode while testing this against a
+genuinely old system Python (pip 21.2.4, the version Apple ships with the
+Xcode Command Line Tools -- likely common among the actual target
+audience, not just this sandbox): that pip mishandles a
+`pyproject.toml`-only project's metadata and silently builds and installs
+an empty package literally named `UNKNOWN`, with none of the real code or
+declared dependencies, reporting success the whole time. `pip install`'s
+own exit code cannot be trusted to mean "the right thing got installed"
+here. `installPythonServer()` now checks the target's pip version first
+and upgrades it before installing if it's old enough to hit this (roughly
+pip <23), and separately, the `import mcstas_ls.server` re-check after
+every install attempt (already there for other reasons) means even an
+unanticipated variant of this failure can't be silently reported as
+success to the user.
+
+Deliberately not attempted: passing `--break-system-packages` to force
+past a PEP 668 "externally-managed-environment" error on Homebrew/Debian/
+Ubuntu system Pythons. That guard exists to protect the system Python
+installation; the correct fix is a virtualenv or conda env (which
+`componentViewer.condaEnv` already supports pointing at), not overriding
+the guard. The failure warning tells the user this.
 
 ### 5. Rollout safety net
 

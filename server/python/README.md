@@ -1,23 +1,38 @@
-# mcstas-language-server (Python, scaffold)
+# mcstas-language-server (Python)
 
-A `pygls`-based skeleton for a Python rewrite of the TypeScript language
-server in `../` (`server/src`). See [`PLAN.md`](./PLAN.md) for the full
-rewrite plan and rationale.
+A `pygls`-based Python rewrite of the TypeScript language server in `../`
+(`server/src`). See [`PLAN.md`](./PLAN.md) for the full rewrite plan and
+rationale, and what's still open (packaging/distribution, mainly).
 
 ## Status
-
-This is a **scaffold only** — not yet wired into the VS Code extension and
-not feature-complete:
 
 - [x] Project layout, packaging (`pyproject.toml`), pygls server instance
 - [x] `parse_helpers.py` ported from `parse_helpers.ts`, with tests
 - [x] `mcstas-comps.json` data file copied over
 - [x] Manually verified: `python3 -m mcstas_ls.server` starts and responds
       to an `initialize` request over stdio (see "Manual smoke test" below)
-- [ ] `hover.py` — port of `hover.ts`
-- [ ] `completion.py` — port of `completion.ts`
-- [ ] `extension.ts` client wiring to launch this server instead of/alongside
-      the Node one
+- [x] `hover.py` — port of `hover.ts`, with tests
+- [x] `completion.py` — port of `completion.ts`, with tests (fuzzy matching
+      uses `rapidfuzz` instead of the TS server's `fuzzy-search`, see
+      `PLAN.md` for why exact ranking parity isn't the goal)
+- [x] Manually verified over real stdio: hover and completion against an
+      open document (see `scripts/smoke_test_hover_completion.py`)
+- [x] `extension.ts` client wiring to launch this server instead of the
+      Node one (`client/src/detectPythonServer.ts` finds an interpreter
+      with `mcstas_ls` installed)
+- [x] `npm run compile` verified to pass, and the wiring verified in a real
+      VS Code Extension Development Host: a clean `initialize`
+      request/response exchange between actual VS Code and the Python
+      server, no connection errors (see `PLAN.md`)
+- [x] Fixed an unrelated pre-existing bug found along the way: `npm test`
+      failed before running a single test, because `@vscode/test-electron`
+      couldn't find modern VS Code's macOS executable (see `PLAN.md`)
+- [x] Packaging/distribution (plan step 4), first cut: `extension.ts` now
+      auto-installs this package via pip the first time it can't find an
+      interpreter with `mcstas_ls` already on it (see
+      `client/src/detectPythonServer.ts`'s `installPythonServer`), instead
+      of just telling the user to run `pip install` themselves. Manual
+      install below still works and is what contributors should use.
 
 ## Setup
 
@@ -61,3 +76,13 @@ framed response it reads back from stdout — the same wire format
 `"textDocumentSync": {"openClose": true, ...}` (the `openClose: true` is
 pygls managing document sync automatically, which is the fix for the
 missing-`didOpen`-handler gap in the current Node server — see `PLAN.md`).
+
+To exercise hover and completion themselves against an open document:
+
+```bash
+python3 scripts/smoke_test_hover_completion.py
+```
+
+This opens a tiny in-memory `.instr` document, hovers over a component
+name, and requests completions inside its parameter list, asserting on the
+shape of both responses.
