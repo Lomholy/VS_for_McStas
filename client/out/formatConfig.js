@@ -113,7 +113,6 @@ async function tryCondaPrefixBins(log) {
         process.env.CONDA_PREFIX,
         process.env.MAMBA_ROOT_PREFIX, // often base install
     ].filter(Boolean);
-    const pathSep = path.sep;
     const binNames = isWindows() ? ['Library\\bin', 'Scripts', 'bin'] : ['bin'];
     for (const prefix of prefixVars) {
         for (const binRel of binNames) {

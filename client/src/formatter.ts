@@ -1,6 +1,4 @@
-import * as vscode from 'vscode';
 import * as child_process from 'child_process';
-import * as path from 'path';
 import { getFormatterConfig } from './formatConfig';
 
 const PRE_ESCAPE = '//__ESC__PRE';
@@ -135,10 +133,8 @@ async function formatComponent(source) {
     let formattedInner = await formatInnerLikePython(inner, clangFormatPath, styleFilePath);
 
     // Remove exactly one trailing newline (if present) so we can control placement
-    let trailingNL = '';
     if (formattedInner.endsWith('\n')) {
       formattedInner = formattedInner.slice(0, -1);
-      trailingNL = '\n';
     }
 
     // Indent with two spaces per line, skipping purely blank lines
@@ -377,9 +373,7 @@ async function formatInstrument(source: string) {
 export async function formatMetaLanguage(source: string, filePath: string): Promise<string> {
   // We now format ALL %{ %} blocks regardless of DECLARE/TRACE/... to match Python.
   // (The original TS used keyword-gated regex; this change is intentional to match Python.)
-  const { clangFormatPath, styleFilePath } = getFormatterConfig();
   let ret;
-  console.log(filePath)
   if (filePath.endsWith(".comp"))
     ret = formatComponent(source)
   else if (filePath.endsWith('.instr'))

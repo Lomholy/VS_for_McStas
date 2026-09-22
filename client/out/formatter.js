@@ -115,10 +115,8 @@ async function formatComponent(source) {
         // Format inner exactly like the Python script
         let formattedInner = await formatInnerLikePython(inner, clangFormatPath, styleFilePath);
         // Remove exactly one trailing newline (if present) so we can control placement
-        let trailingNL = '';
         if (formattedInner.endsWith('\n')) {
             formattedInner = formattedInner.slice(0, -1);
-            trailingNL = '\n';
         }
         // Indent with two spaces per line, skipping purely blank lines
         const core = indentLines(formattedInner, '  ', /*indentBlankLines*/ false);
@@ -314,9 +312,7 @@ async function formatInstrument(source) {
 async function formatMetaLanguage(source, filePath) {
     // We now format ALL %{ %} blocks regardless of DECLARE/TRACE/... to match Python.
     // (The original TS used keyword-gated regex; this change is intentional to match Python.)
-    const { clangFormatPath, styleFilePath } = (0, formatConfig_1.getFormatterConfig)();
     let ret;
-    console.log(filePath);
     if (filePath.endsWith(".comp"))
         ret = formatComponent(source);
     else if (filePath.endsWith('.instr'))
