@@ -20,6 +20,13 @@ rationale, and what's still open (packaging/distribution, mainly).
 - [x] `extension.ts` client wiring to launch this server instead of the
       Node one (`client/src/detectPythonServer.ts` finds an interpreter
       with `mcstas_ls` installed)
+- [x] `npm run compile` verified to pass, and the wiring verified in a real
+      VS Code Extension Development Host: a clean `initialize`
+      request/response exchange between actual VS Code and the Python
+      server, no connection errors (see `PLAN.md`)
+- [x] Fixed an unrelated pre-existing bug found along the way: `npm test`
+      failed before running a single test, because `@vscode/test-electron`
+      couldn't find modern VS Code's macOS executable (see `PLAN.md`)
 - [ ] Packaging/distribution (plan step 4): nothing publishes or bundles
       this package for end users yet -- see "Setup" below and install it
       yourself into whichever Python environment the extension should find

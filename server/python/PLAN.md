@@ -4,11 +4,16 @@
 
 Steps 1–3 below are done: hover.py/completion.py are ported and tested,
 and `extension.ts` now launches the Python server instead of the Node one.
-Steps 4–6 (packaging/distribution, the rollout toggle, and automated
-old-vs-new parity testing) are not — see `README.md` for the current
-checklist. In particular, nothing publishes or bundles `mcstas_ls` yet: a
-user has to `pip install -e server/python` themselves into whichever
-Python environment they want the extension to find (see step 4).
+This has been verified for real: `npm run compile` passes cleanly, and a
+real VS Code 1.138.0 Extension Development Host (launched directly, with a
+Python environment that has `mcstas_ls` installed active on `PATH`) shows
+a clean `initialize` handshake between the client and the Python server,
+with no connection errors. Steps 4–6 (packaging/distribution, the rollout
+toggle, and automated old-vs-new parity testing) are not — see `README.md`
+for the current checklist. In particular, nothing publishes or bundles
+`mcstas_ls` yet: a user has to `pip install -e server/python` themselves
+into whichever Python environment they want the extension to find (see
+step 4).
 
 ## What exists today
 
@@ -98,11 +103,30 @@ same PATH -> conda/mamba `run` -> conda env prefix probing strategy as
 clang-format install-help UX for when no interpreter with `mcstas_ls`
 installed is found.
 
-Caveat: this environment has no Node.js/npm available, so the TypeScript
-changes could not be compiled or type-checked locally (only reviewed by
-hand against the `vscode-languageclient` `Executable` type shape, which
-`{command, args, transport}` matches). Run `npm run compile` (or let CI do
-it) before merging to confirm.
+Resolved: Node.js is now available in this environment (installed via
+Homebrew). `npm run compile` passes cleanly, and the compiled
+`client/out/extension.js`/`client/out/detectPythonServer.js` (checked into
+git, per this repo's build setup) are committed alongside the source so
+they're no longer stale. Beyond compiling, this was verified in a real VS
+Code 1.138.0 Extension Development Host, launched directly with
+`--extensionDevelopmentPath` pointed at this branch and a Python
+environment with `mcstas_ls` installed active on `PATH`: the extension
+activated, `detectPythonServer.ts` found the interpreter, and the
+extension host log shows a clean `initialize` request/response exchange
+between the real VS Code client and the Python server with no connection
+errors -- e.g. `client_info=ClientInfo(name='Visual Studio Code',
+version='1.138.0')` followed by the server's capabilities response.
+
+While setting this up, `npm test` turned out to be broken independent of
+this PR: `@vscode/test-electron@2.4.1` looks for a macOS executable named
+`Electron`, but VS Code 1.110+ builds name it `Code` (a known upstream bug,
+fixed in `@vscode/test-electron@3.1.0` by reading `CFBundleExecutable`
+from `Info.plist` instead of hardcoding the name). Bumped the dependency
+and confirmed `npx vscode-test` now runs the existing test suite for real
+("1 passing", exit code 0) instead of failing with `spawn ... ENOENT`
+before a single test runs. Also added `.vscode-test/` to `.gitignore` --
+running the test suite downloads a ~900MB VS Code build into that
+directory, and nothing previously stopped it from being committed.
 
 Also not addressed here: `server/out/server.js` (the Node server) is no
 longer launched by default, but its source is still in the repo -- see
