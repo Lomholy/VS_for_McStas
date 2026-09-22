@@ -149,13 +149,18 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 	};
 
-	// Create the language client and start the client.
+	// Create the language client and start it immediately. Hover and
+	// completion depend on this, so it must not sit behind unrelated setup
+	// like clang-format detection below -- that used to run first and could
+	// add several subprocess probes' worth of delay before the client even
+	// started, let alone finished its own initialize handshake.
 	client = new LanguageClient(
 		"mcinstr language-server-id",
 		"mcstas-language-server language server name",
 		serverOptions,
 		clientOptions
 	);
+	client.start();
 
 	// Check for clang-format on system
 	const cfg = vscode.workspace.getConfiguration('mcstas.formatter');
@@ -182,8 +187,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const clangFormatResolved = found ?? (userPath || 'clang-format');
 	const styleFilePath = path.join(context.extensionPath, 'media', '.clang-format');
 	setFormatterConfig({ clangFormatPath: clangFormatResolved, styleFilePath });
-	// Start the language server client, and add the formatter.
-	client.start();
 	let provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
 		provideDocumentFormattingEdits: async (doc) => {
 			const fullRange = new vscode.Range(
