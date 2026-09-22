@@ -1,8 +1,8 @@
-# mcstas-language-server (Python, scaffold)
+# mcstas-language-server (Python)
 
-A `pygls`-based skeleton for a Python rewrite of the TypeScript language
-server in `../` (`server/src`). See [`PLAN.md`](./PLAN.md) for the full
-rewrite plan and rationale.
+A `pygls`-based Python rewrite of the TypeScript language server in `../`
+(`server/src`). See [`PLAN.md`](./PLAN.md) for the full rewrite plan and
+rationale, and what's still open (packaging/distribution, mainly).
 
 ## Status
 
@@ -17,8 +17,12 @@ rewrite plan and rationale.
       `PLAN.md` for why exact ranking parity isn't the goal)
 - [x] Manually verified over real stdio: hover and completion against an
       open document (see `scripts/smoke_test_hover_completion.py`)
-- [ ] `extension.ts` client wiring to launch this server instead of the
-      Node one
+- [x] `extension.ts` client wiring to launch this server instead of the
+      Node one (`client/src/detectPythonServer.ts` finds an interpreter
+      with `mcstas_ls` installed)
+- [ ] Packaging/distribution (plan step 4): nothing publishes or bundles
+      this package for end users yet -- see "Setup" below and install it
+      yourself into whichever Python environment the extension should find
 
 ## Setup
 

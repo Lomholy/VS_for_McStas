@@ -2,9 +2,13 @@
 
 ## Status
 
-`hover.py` and `completion.py` are now ported and tested (step 2 below is
-done). `extension.ts` still launches the Node server (step 3) — see
-`README.md` for the current checklist.
+Steps 1–3 below are done: hover.py/completion.py are ported and tested,
+and `extension.ts` now launches the Python server instead of the Node one.
+Steps 4–6 (packaging/distribution, the rollout toggle, and automated
+old-vs-new parity testing) are not — see `README.md` for the current
+checklist. In particular, nothing publishes or bundles `mcstas_ls` yet: a
+user has to `pip install -e server/python` themselves into whichever
+Python environment they want the extension to find (see step 4).
 
 ## What exists today
 
@@ -83,14 +87,27 @@ All of this is pure logic, no architecture decisions needed:
 
 ### 3. Client wiring (small TS diff, not a rewrite)
 
-In `extension.ts`, `ServerOptions` currently launches `server/out/server.js`
-as a Node module. Swap the `run`/`debug` blocks to a
-`{command, args, transport: TransportKind.stdio}` shape pointing at a
-Python interpreter + the new server script. Reuse the conda-env detection
-already present (`componentViewer.condaEnv` setting, `checkCondaEnv.js`) to
-locate that interpreter — same pattern already used for `clang-format` and
-for `mcrun`/`mcdisplay`/`mcplot`, so no new config surface is needed. Not
-done in this PR.
+**Done.** `extension.ts`'s `ServerOptions` now launches
+`{command, args, transport: TransportKind.stdio}` (a Python interpreter
+running `-m mcstas_ls.server`) instead of `server/out/server.js` as a Node
+module. `client/src/detectPythonServer.ts` finds that interpreter via the
+same PATH -> conda/mamba `run` -> conda env prefix probing strategy as
+`detectClangFormat` in `formatConfig.ts`, reusing the existing
+`componentViewer.condaEnv` setting rather than adding a new one, and a
+`mcstas.openPythonServerHelp` command/warning mirrors the existing
+clang-format install-help UX for when no interpreter with `mcstas_ls`
+installed is found.
+
+Caveat: this environment has no Node.js/npm available, so the TypeScript
+changes could not be compiled or type-checked locally (only reviewed by
+hand against the `vscode-languageclient` `Executable` type shape, which
+`{command, args, transport}` matches). Run `npm run compile` (or let CI do
+it) before merging to confirm.
+
+Also not addressed here: `server/out/server.js` (the Node server) is no
+longer launched by default, but its source is still in the repo -- see
+"Rollout safety net" below for the originally-planned toggle, which this PR
+skips in favor of the plan's literal "swap" wording.
 
 ### 4. Packaging — the one real decision point
 

@@ -16,14 +16,12 @@ import { mcplotCommand } from './mcplotCommand';
 import { setExtensionRootPath } from './global_params';
 import { formatMetaLanguage } from './formatter';
 import { detectClangFormat, setFormatterConfig } from './formatConfig';
+import { detectPythonServerCommand } from './detectPythonServer';
 
 
 
 let client: LanguageClient;
 export async function activate(context: vscode.ExtensionContext) {
-	const serverPath = path.join(__dirname, '../../server/src', 'server.py');
-	console.log(serverPath)
-
 	setExtensionRootPath(context.extensionPath);
 	activateComponentViewer(context); // Read the component tree
 	context.subscriptions.push(// Allow user to insert a component
@@ -68,22 +66,58 @@ export async function activate(context: vscode.ExtensionContext) {
 		);
 	});
 
+	vscode.commands.registerCommand('mcstas.openPythonServerHelp', () => {
+		vscode.window.showInformationMessage(
+			"To install the McStas language server:\n" +
+			"▶ cd server/python (in the VS_for_McStas source, or wherever it was installed)\n" +
+			"▶ pip install -e \".[dev]\"\n" +
+			"Make sure the same Python environment is on PATH, or active as a conda/mamba env, when VS Code starts.\n" +
+			"After installation, restart VS Code."
+		);
+	});
+
 
 	console.log(context.subscriptions);
 
 
 
-	// The server is implemented in node
-	const serverModule = context.asAbsolutePath(
-		path.join("server", "out", "server.js")
-	);
+	// The language server is implemented in Python (server/python), using
+	// pygls. Find an interpreter that has the mcstas_ls package installed --
+	// same PATH -> conda/mamba run -> conda env prefix probing strategy as
+	// detectClangFormat below, reusing componentViewer.condaEnv rather than
+	// adding a new setting.
+	const componentViewerCfg = vscode.workspace.getConfiguration('componentViewer');
+	const condaEnvName = componentViewerCfg.get<string>('condaEnv')?.trim() || undefined;
+
+	const pythonServerCommand = await detectPythonServerCommand({
+		condaEnvName,
+		log: (m) => console.log(`[mcstas] ${m}`)
+	});
+
+	if (!pythonServerCommand) {
+		vscode.window.showWarningMessage(
+			'McStas Language Server: Could not find a Python interpreter with "mcstas_ls" installed. Hover and completion will not work until one is found. If you are using conda/mamba, ensure the environment is active or set componentViewer.condaEnv.',
+			'Installation Help'
+		).then(btn => {
+			if (btn === 'Installation Help') {
+				vscode.commands.executeCommand('mcstas.openPythonServerHelp');
+			}
+		});
+	}
+
+	// Fall back to a bare "python3 -m mcstas_ls.server" even when detection
+	// didn't confirm the package is importable, mirroring the clang-format
+	// fallback below: it may still work via a PATH/shell setup detection
+	// didn't probe (e.g. a shell profile VS Code doesn't inherit).
+	const resolvedServerCommand = pythonServerCommand ?? { command: 'python3', args: ['-m', 'mcstas_ls.server'] };
 
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	const serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.stdio },
+		run: { command: resolvedServerCommand.command, args: resolvedServerCommand.args, transport: TransportKind.stdio },
 		debug: {
-			module: serverModule,
+			command: resolvedServerCommand.command,
+			args: resolvedServerCommand.args,
 			transport: TransportKind.stdio,
 		},
 	};
