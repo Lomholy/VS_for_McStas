@@ -1,0 +1,25 @@
+[project]
+name = "mcstas-language-server"
+version = "0.0.1"
+description = "Python (pygls) language server for McStas .instr/.comp files"
+requires-python = ">=3.9"
+dependencies = [
+    "pygls>=1.3.0",
+    "rapidfuzz>=3.6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+mcstas-language-server = "mcstas_ls.server:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mcstas_ls = ["data/*.json"]
