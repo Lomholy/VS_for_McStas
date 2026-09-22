@@ -46,9 +46,20 @@ async function fileExists(p: string): Promise<boolean> {
   try { await fs.access(p); return true; } catch { return false; }
 }
 
+// A plain interpreter probe (`--version`, or importing one already-installed
+// module) should return almost instantly. Without a timeout, execFileSync
+// blocks the whole extension host event loop indefinitely if the spawned
+// process ever hangs -- e.g. a PATH entry that isn't really the interpreter
+// it claims to be, or (concretely seen on macOS) a `python3` shim that pops
+// up a blocking "install Command Line Tools" dialog and waits forever for a
+// click that never comes. That can present as the whole debug session
+// becoming unresponsive and getting torn down well before this function
+// would ever return on its own.
+const PROBE_TIMEOUT_MS = 5000;
+
 function canImportServer(pythonExe: string): boolean {
   try {
-    child_process.execFileSync(pythonExe, ['-c', 'import mcstas_ls.server'], { stdio: 'ignore' });
+    child_process.execFileSync(pythonExe, ['-c', 'import mcstas_ls.server'], { stdio: 'ignore', timeout: PROBE_TIMEOUT_MS });
     return true;
   } catch {
     return false;
@@ -83,10 +94,14 @@ function tryCondaRun(condaEnvName: string | undefined, log?: (m: string) => void
   for (const runner of runners) {
     for (const exe of pythonExeNames()) {
       try {
+        // conda/mamba run has real activation overhead (shell hooks etc.)
+        // on top of the interpreter call itself, so this gets a longer
+        // budget than PROBE_TIMEOUT_MS -- but still bounded, for the same
+        // reason.
         child_process.execFileSync(
           runner,
           ['run', '-n', condaEnvName, exe, '-c', 'import mcstas_ls.server'],
-          { stdio: 'ignore' }
+          { stdio: 'ignore', timeout: 4 * PROBE_TIMEOUT_MS }
         );
         log?.(`Found mcstas_ls via ${runner} run -n ${condaEnvName}: ${exe}`);
         return { command: runner, args: ['run', '-n', condaEnvName, '--no-capture-output', exe, ...SERVER_MODULE_ARGS] };
@@ -191,7 +206,7 @@ export async function detectPythonServerCommand(
 
 function isPythonExecutable(name: string): boolean {
   try {
-    child_process.execFileSync(name, ['--version'], { stdio: 'ignore' });
+    child_process.execFileSync(name, ['--version'], { stdio: 'ignore', timeout: PROBE_TIMEOUT_MS });
     return true;
   } catch {
     return false;
@@ -201,12 +216,22 @@ function isPythonExecutable(name: string): boolean {
 /** Runs `pip <args>` via some invocation shape (bare interpreter, or `conda run -n env`). */
 type PipInvoker = (pipArgs: string[]) => Promise<{ stdout: string; stderr: string }>;
 
+// pip install can legitimately take a while (resolving/downloading
+// dependencies, building a wheel in an isolated env) -- this is deliberately
+// much longer than PROBE_TIMEOUT_MS. It's not there to bound normal slow
+// installs, only to stop activate() waiting forever if pip itself hangs
+// (e.g. on a credential prompt or a connection that never times out on its
+// own). These calls are already async, so unlike the execFileSync probes
+// above this doesn't freeze the whole extension host either way -- just
+// bounds how long the install flow can sit pending.
+const PIP_TIMEOUT_MS = 3 * 60 * 1000;
+
 function bareInvoker(pythonExe: string): PipInvoker {
-  return (pipArgs) => execFileAsync(pythonExe, ['-m', 'pip', ...pipArgs]);
+  return (pipArgs) => execFileAsync(pythonExe, ['-m', 'pip', ...pipArgs], { timeout: PIP_TIMEOUT_MS });
 }
 
 function condaRunInvoker(runner: string, condaEnvName: string, exe: string): PipInvoker {
-  return (pipArgs) => execFileAsync(runner, ['run', '-n', condaEnvName, exe, '-m', 'pip', ...pipArgs]);
+  return (pipArgs) => execFileAsync(runner, ['run', '-n', condaEnvName, exe, '-m', 'pip', ...pipArgs], { timeout: PIP_TIMEOUT_MS });
 }
 
 async function getPipMajorVersion(invoke: PipInvoker): Promise<number | null> {

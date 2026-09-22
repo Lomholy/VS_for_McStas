@@ -22,9 +22,19 @@ async function fileExists(p: string): Promise<boolean> {
   try { await fs.access(p); return true; } catch { return false; }
 }
 
+// A bare `--version` invocation should return almost instantly. Without a
+// timeout, execFileSync blocks the whole extension host event loop
+// indefinitely if the spawned process ever hangs -- e.g. a PATH entry that
+// isn't really the tool it claims to be, or (concretely seen on macOS) a
+// `python3` shim that pops up a blocking "install Command Line Tools"
+// dialog and waits forever for a click that never comes. That can present
+// as the whole debug session becoming unresponsive and getting torn down
+// well before this function would ever return on its own.
+const PROBE_TIMEOUT_MS = 5000;
+
 function execFileSafe(cmd: string, args: string[]): boolean {
   try {
-    child_process.execFileSync(cmd, args, { stdio: 'ignore' });
+    child_process.execFileSync(cmd, args, { stdio: 'ignore', timeout: PROBE_TIMEOUT_MS });
     return true;
   } catch {
     return false;
@@ -94,7 +104,10 @@ function tryCondaRun(condaEnvName: string | undefined, log?: (m: string) => void
     for (const exe of names) {
       const args = ['-n', condaEnvName ?? '', exe, '--version'].filter(Boolean);
       try {
-        child_process.execFileSync(r.cmd, [...r.args, ...args], { stdio: 'ignore' });
+        // conda/mamba run has real activation overhead (shell hooks etc.)
+        // on top of the tool call itself, so this gets a longer budget than
+        // PROBE_TIMEOUT_MS -- but still bounded, for the same reason.
+        child_process.execFileSync(r.cmd, [...r.args, ...args], { stdio: 'ignore', timeout: 4 * PROBE_TIMEOUT_MS });
         log?.(`Found via ${r.cmd} run ${condaEnvName ? `-n ${condaEnvName}` : ''}: ${exe}`);
         // We return the plain name; subsequent invocations should use the same runner logic OR
         // we can store a special token to re-run through conda. For simplicity, return the exe.
