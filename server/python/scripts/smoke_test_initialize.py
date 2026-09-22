@@ -33,11 +33,13 @@ def read_message(stream) -> dict:
 
 
 def main() -> None:
+    # stderr must not be captured into an unread PIPE here: pygls logs
+    # verbosely, and an unread pipe fills up and deadlocks the child.
     proc = subprocess.Popen(
         [sys.executable, "-m", "mcstas_ls.server"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
 
     request = {

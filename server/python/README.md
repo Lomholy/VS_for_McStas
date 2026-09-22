@@ -6,18 +6,19 @@ rewrite plan and rationale.
 
 ## Status
 
-This is a **scaffold only** — not yet wired into the VS Code extension and
-not feature-complete:
-
 - [x] Project layout, packaging (`pyproject.toml`), pygls server instance
 - [x] `parse_helpers.py` ported from `parse_helpers.ts`, with tests
 - [x] `mcstas-comps.json` data file copied over
 - [x] Manually verified: `python3 -m mcstas_ls.server` starts and responds
       to an `initialize` request over stdio (see "Manual smoke test" below)
-- [ ] `hover.py` — port of `hover.ts`
-- [ ] `completion.py` — port of `completion.ts`
-- [ ] `extension.ts` client wiring to launch this server instead of/alongside
-      the Node one
+- [x] `hover.py` — port of `hover.ts`, with tests
+- [x] `completion.py` — port of `completion.ts`, with tests (fuzzy matching
+      uses `rapidfuzz` instead of the TS server's `fuzzy-search`, see
+      `PLAN.md` for why exact ranking parity isn't the goal)
+- [x] Manually verified over real stdio: hover and completion against an
+      open document (see `scripts/smoke_test_hover_completion.py`)
+- [ ] `extension.ts` client wiring to launch this server instead of the
+      Node one
 
 ## Setup
 
@@ -61,3 +62,13 @@ framed response it reads back from stdout — the same wire format
 `"textDocumentSync": {"openClose": true, ...}` (the `openClose: true` is
 pygls managing document sync automatically, which is the fix for the
 missing-`didOpen`-handler gap in the current Node server — see `PLAN.md`).
+
+To exercise hover and completion themselves against an open document:
+
+```bash
+python3 scripts/smoke_test_hover_completion.py
+```
+
+This opens a tiny in-memory `.instr` document, hovers over a component
+name, and requests completions inside its parameter list, asserting on the
+shape of both responses.

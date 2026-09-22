@@ -2,9 +2,9 @@
 
 ## Status
 
-This PR adds a scaffold only (see `README.md` for the checklist). It does
-not touch the existing Node server in `../` or wire the extension client to
-launch Python yet.
+`hover.py` and `completion.py` are now ported and tested (step 2 below is
+done). `extension.ts` still launches the Node server (step 3) — see
+`README.md` for the current checklist.
 
 ## What exists today
 
@@ -71,11 +71,15 @@ All of this is pure logic, no architecture decisions needed:
   behavior for parity and documents it in a comment and a test; worth a
   follow-up fix in a later phase, in whichever language ends up owning that
   logic by then.
-- `hover.py` — direct port of the regex + Markdown builder. Not yet done.
-- `completion.py` — the biggest piece; swap `fuzzy-search` for `rapidfuzz`
+- `hover.py` — direct port of the regex + Markdown builder. **Done.**
+- `completion.py` — the biggest piece; swaps `fuzzy-search` for `rapidfuzz`
   (maintained, fast, simple `pip install`). The component-context detection
-  and snippet-building logic ports mechanically. Not yet done.
-- Copy `mcstas-comps.json` unchanged. **Done in this PR.**
+  and snippet-building logic ported mechanically. **Done.** Fuzzy ranking is
+  not byte-for-byte identical to the TS server's `fuzzy-search`-based
+  ranking — different library, different scoring function — but the
+  behavior (rank by label/detail match quality, preselect the top hit) is
+  the same.
+- Copy `mcstas-comps.json` unchanged. **Done.**
 
 ### 3. Client wiring (small TS diff, not a rewrite)
 
