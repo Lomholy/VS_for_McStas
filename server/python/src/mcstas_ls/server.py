@@ -26,7 +26,7 @@ from importlib import resources
 from typing import Any
 
 from lsprotocol import types as lsp
-from pygls.server import LanguageServer
+from pygls.lsp.server import LanguageServer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcstas_ls")
