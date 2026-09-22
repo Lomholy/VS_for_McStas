@@ -46,7 +46,8 @@ _DEFINE_INSTRUMENT_RE = re.compile(r"DEFINE INSTRUMENT.*?\((.*?)\)", re.DOTALL)
 _DECLARE_BLOCK_RE = re.compile(r"DECLARE\s*%\{(.*?)%\}", re.DOTALL)
 _PREPROCESSOR_RE = re.compile(r"^\s*#")
 _VOID_ONLY_RE = re.compile(r"^\s*\bvoid\b\s*$")
-_COMPONENT_ASSIGN_RE = re.compile(r"COMPONENT.*?=(.*?)\((.*?)\)", re.DOTALL)
+_COMPONENT_OPEN_RE = re.compile(r"COMPONENT.*?=(.*?)\(", re.DOTALL)
+_NEXT_COMPONENT_RE = re.compile(r"\bCOMPONENT\b")
 _INLINE_COMMENT_RE = re.compile(r"//.*|#.*|/\*[\s\S]*?\*/")
 _TRAILING_TYPE_TOKEN_RE = re.compile(r"[A-Za-z_][\w:.]*\s*$")
 _TRAILING_WORD_RE = re.compile(r"(\w*)$")
@@ -99,25 +100,43 @@ def get_declared_variables(content: str) -> list[str]:
 def get_component_context(content: str, offset: int) -> tuple[bool, str | None]:
     """Detect whether `offset` sits inside a `COMPONENT ... = Type(...)`
     parameter list, and if so, which `Type`.
+
+    The closing `)` is optional: while a component is still being written,
+    offset naturally falls between the `(` and wherever the user's cursor
+    currently is, with no `)` anywhere yet. Parameters should be offered
+    from that first moment, not only once the block has already been
+    closed -- otherwise the one point in editing a component where its
+    parameter list is most useful never actually shows it.
     """
-    for m in _COMPONENT_ASSIGN_RE.finditer(content):
-        full = m.group(0)
-        open_rel = full.find("(")
-        if open_rel < 0:
-            continue
+    best_match = None
+    for m in _COMPONENT_OPEN_RE.finditer(content):
+        if m.end() > offset:
+            break
+        best_match = m
 
-        args_text = m.group(2) or ""
-        args_start = m.start() + open_rel + 1
-        args_end = args_start + len(args_text)
+    if best_match is None:
+        return False, None
 
-        if args_start <= offset <= args_end:
-            raw_type = (m.group(1) or "").strip()
-            cleaned_type = _INLINE_COMMENT_RE.sub("", raw_type).strip()
-            type_match = _TRAILING_TYPE_TOKEN_RE.search(cleaned_type)
-            component_type = (type_match.group(0) if type_match else cleaned_type).strip()
-            return True, component_type
+    args_start = best_match.end()
 
-    return False, None
+    close_idx = content.find(")", args_start)
+    # Don't let a later component's own punctuation (its closing paren, or
+    # even a fresh "COMPONENT" keyword if this one is simply missing a `)`)
+    # be mistaken for this component's closing paren.
+    next_component_match = _NEXT_COMPONENT_RE.search(content, args_start)
+    next_component_idx = next_component_match.start() if next_component_match else None
+
+    candidates = [idx for idx in (close_idx if close_idx != -1 else None, next_component_idx) if idx is not None]
+    args_end = min(candidates) if candidates else len(content)
+
+    if not (args_start <= offset <= args_end):
+        return False, None
+
+    raw_type = (best_match.group(1) or "").strip()
+    cleaned_type = _INLINE_COMMENT_RE.sub("", raw_type).strip()
+    type_match = _TRAILING_TYPE_TOKEN_RE.search(cleaned_type)
+    component_type = (type_match.group(0) if type_match else cleaned_type).strip()
+    return True, component_type
 
 
 def _offset_at(content: str, line: int, character: int) -> int:
