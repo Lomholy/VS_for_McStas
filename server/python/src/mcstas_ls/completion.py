@@ -21,7 +21,6 @@ from typing import Any
 
 from lsprotocol import types as lsp
 from rapidfuzz import fuzz
-from rapidfuzz import process as fuzzy_process
 
 from .data import get_components
 from .parse_helpers import (
@@ -184,16 +183,35 @@ def _dedupe_by_label(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _fuzzy_filter(items: list[dict[str, Any]], query: str, limit: int = 500) -> list[dict[str, Any]]:
-    choices = [f"{it['label']} {it.get('detail', '')}" for it in items]
-    matches = fuzzy_process.extract(query, choices, scorer=fuzz.WRatio, limit=limit, score_cutoff=1)
+    # Score label and detail separately and take the better of the two,
+    # rather than scoring one "label + detail" string: concatenating them
+    # dilutes short/ambiguous queries (e.g. "Ar") enough that an unrelated
+    # item can coincidentally score the same as the intended match, and
+    # which one then wins that tie is an internal rapidfuzz implementation
+    # detail -- one that silently changed between rapidfuzz releases and
+    # broke this exact case (component snippets' detail text repeats their
+    # label, e.g. "Arm" / "Arm From Category: optics", which is exactly
+    # the kind of string that dilutes worst).
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for item in items:
+        label_score = fuzz.WRatio(query, item["label"])
+        detail = item.get("detail")
+        score = max(label_score, fuzz.WRatio(query, detail)) if detail else label_score
+        if score >= 1:
+            scored.append((score, item))
+
+    # A stable sort keeps ties in their original (insertion) order, so
+    # ranking is deterministic and doesn't depend on rapidfuzz's internal
+    # tie-breaking for equal scores either.
+    scored.sort(key=lambda pair: pair[0], reverse=True)
 
     out: list[dict[str, Any]] = []
-    for idx, (_, _score, choice_idx) in enumerate(matches):
-        item = dict(items[choice_idx])
-        item["filterText"] = item["label"]
-        item["sortText"] = str(idx).zfill(6)
-        item["preselect"] = idx == 0
-        out.append(item)
+    for idx, (_score, item) in enumerate(scored[:limit]):
+        entry = dict(item)
+        entry["filterText"] = entry["label"]
+        entry["sortText"] = str(idx).zfill(6)
+        entry["preselect"] = idx == 0
+        out.append(entry)
     return out
 
 
