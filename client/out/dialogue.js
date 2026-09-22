@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.openCompDialog = openCompDialog;
 const vscode = require("vscode");
-const data = require("../../server/src/methods/textDocument/mcstas-comps.json");
+const data = require("../../server/python/src/mcstas_ls/data/mcstas-comps.json");
 const os = require('os');
 async function openCompDialog(filePath) {
     const comp_json = getcomp(filePath);

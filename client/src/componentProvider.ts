@@ -87,7 +87,7 @@ function getCandidateCondaEnvs(): string[] {
 }
 
 export async function activateComponentViewer(context: vscode.ExtensionContext) {
-  const jsonPath = context.asAbsolutePath('./server/src/methods/textDocument/mcstas-comps.json');
+  const jsonPath = context.asAbsolutePath('./server/python/src/mcstas_ls/data/mcstas-comps.json');
   vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(jsonPath, context));
 }
 

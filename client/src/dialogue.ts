@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as data from '../../server/src/methods/textDocument/mcstas-comps.json'
+import * as data from '../../server/python/src/mcstas_ls/data/mcstas-comps.json'
 
 const os = require('os');
 export async function openCompDialog(filePath: string) {
