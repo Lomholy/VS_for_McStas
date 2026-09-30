@@ -16,6 +16,67 @@ and it does not show up, please submit an issue on the [Githup Repository](https
 
 In general, if you have any problems, desires for improvements etc. add an issue or your own fix on [the Github Repository](https://github.com/Lomholy/VS_for_McStas)!
 
+## Using the language server in Neovim
+
+The language server (hover and autocompletion) is a standalone Python package
+in `server/python`, so it also works in Neovim without the VS Code extension.
+It needs Python 3.9 or newer and Neovim 0.10 or newer.
+
+Install it from a clone of this repository:
+
+```bash
+git clone https://github.com/Lomholy/VS_for_McStas.git
+cd VS_for_McStas
+python3 -m pip install --user --upgrade pip
+python3 -m pip install --user -e server/python
+```
+
+The editable install (`-e`) needs pip 21.3 or newer, which is why pip is
+upgraded first. It makes the server follow the clone, so a `git pull` is
+enough to update it.
+
+Check that the interpreter can find the server:
+
+```bash
+python3 -c "import mcstas_ls; print(mcstas_ls.__file__)"
+```
+
+Then add this to your `init.lua`:
+
+```lua
+vim.filetype.add({
+  extension = {
+    instr = 'mccode',
+    comp = 'mccode',
+  },
+})
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'mccode',
+  callback = function(args)
+    vim.lsp.start({
+      name = 'mcstas_language_server',
+      cmd = { 'python3', '-m', 'mcstas_ls.server' },
+      root_dir = vim.fs.dirname(vim.api.nvim_buf_get_name(args.buf)),
+    })
+  end,
+})
+```
+
+`cmd` must use the same interpreter the package was installed with. If
+`python3` points somewhere else inside Neovim (for example with an activated
+conda environment), replace it with the absolute path printed by
+`python3 -c "import sys; print(sys.executable)"` in the shell you installed
+from.
+
+Open a `.instr` or `.comp` file and run `:checkhealth vim.lsp` to confirm that
+`mcstas_language_server` is attached. `K` shows the documentation of the
+component under the cursor and `<C-x><C-o>` completes component names and
+parameters.
+
+Syntax highlighting is not part of the language server, so Neovim only
+highlights these files if you have a `mccode` syntax file installed.
+
 
 ## Known Issues
 
