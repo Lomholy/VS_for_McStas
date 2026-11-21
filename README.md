@@ -34,16 +34,24 @@ Update it later with `pipx upgrade mcstas-language-server`. Because the server
 lives in its own environment, it does not matter which Python or conda
 environment is active when Neovim starts.
 
-Then add this to your `init.lua`:
+This repository is also a Neovim plugin that detects `.instr` and `.comp` files
+as filetype `mccode` and highlights them with the McStas Vim syntax file
+(`syntax/mccode.vim`, from McCode's `support/common/editors/mccode.vim`).
+Install it with [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
-vim.filetype.add({
-  extension = {
-    instr = 'mccode',
-    comp = 'mccode',
-  },
-})
+{ "Lomholy/VS_for_McStas" },
+```
 
+or without a plugin manager:
+
+```bash
+git clone https://github.com/Lomholy/VS_for_McStas.git ~/.local/share/nvim/site/pack/mcstas/start/VS_for_McStas
+```
+
+Then add this to your `init.lua` to start the language server:
+
+```lua
 vim.lsp.config('mcstas', {
   cmd = { 'mcstas-language-server' },
   filetypes = { 'mccode' },
@@ -60,9 +68,6 @@ Open a `.instr` or `.comp` file and run `:checkhealth vim.lsp` to confirm that
 `mcstas` is attached. `K` shows the documentation of the
 component under the cursor and `<C-x><C-o>` completes component names and
 parameters.
-
-Syntax highlighting is not part of the language server, so Neovim only
-highlights these files if you have a `mccode` syntax file installed.
 
 
 ## Known Issues
