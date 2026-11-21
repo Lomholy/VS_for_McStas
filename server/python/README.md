@@ -27,12 +27,13 @@ rationale, and what's still open (packaging/distribution, mainly).
 - [x] Fixed an unrelated pre-existing bug found along the way: `npm test`
       failed before running a single test, because `@vscode/test-electron`
       couldn't find modern VS Code's macOS executable (see `PLAN.md`)
-- [x] Packaging/distribution (plan step 4), first cut: `extension.ts` now
-      auto-installs this package via pip the first time it can't find an
-      interpreter with `mcstas_ls` already on it (see
-      `client/src/detectPythonServer.ts`'s `installPythonServer`), instead
-      of just telling the user to run `pip install` themselves. Manual
-      install below still works and is what contributors should use.
+- [x] Packaging/distribution (plan step 4): `extension.ts` runs
+      `mcstas-language-server` from PATH if present (pipx, uv, a manual
+      venv), else installs this package into a private venv in the
+      extension's global storage, rebuilt on each extension version (see
+      `client/src/detectPythonServer.ts`'s `resolvePythonServer`). To test
+      local server changes in VS Code, put your `.venv/bin` from the setup
+      below on PATH.
 
 ## Setup
 
