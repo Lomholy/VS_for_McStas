@@ -46,9 +46,7 @@ _DEFINE_INSTRUMENT_RE = re.compile(r"DEFINE INSTRUMENT.*?\((.*?)\)", re.DOTALL)
 _DECLARE_BLOCK_RE = re.compile(r"DECLARE\s*%\{(.*?)%\}", re.DOTALL)
 _PREPROCESSOR_RE = re.compile(r"^\s*#")
 _VOID_ONLY_RE = re.compile(r"^\s*\bvoid\b\s*$")
-_COMPONENT_ASSIGN_RE = re.compile(r"COMPONENT.*?=(.*?)\((.*?)\)", re.DOTALL)
-_INLINE_COMMENT_RE = re.compile(r"//.*|#.*|/\*[\s\S]*?\*/")
-_TRAILING_TYPE_TOKEN_RE = re.compile(r"[A-Za-z_][\w:.]*\s*$")
+_COMPONENT_HEAD_RE = re.compile(r"COMPONENT\s+[A-Za-z_]\w*\s*=\s*([A-Za-z_]\w*)\s*$")
 _TRAILING_WORD_RE = re.compile(r"(\w*)$")
 
 
@@ -100,23 +98,17 @@ def get_component_context(content: str, offset: int) -> tuple[bool, str | None]:
     """Detect whether `offset` sits inside a `COMPONENT ... = Type(...)`
     parameter list, and if so, which `Type`.
     """
-    for m in _COMPONENT_ASSIGN_RE.finditer(content):
-        full = m.group(0)
-        open_rel = full.find("(")
-        if open_rel < 0:
-            continue
-
-        args_text = m.group(2) or ""
-        args_start = m.start() + open_rel + 1
-        args_end = args_start + len(args_text)
-
-        if args_start <= offset <= args_end:
-            raw_type = (m.group(1) or "").strip()
-            cleaned_type = _INLINE_COMMENT_RE.sub("", raw_type).strip()
-            type_match = _TRAILING_TYPE_TOKEN_RE.search(cleaned_type)
-            component_type = (type_match.group(0) if type_match else cleaned_type).strip()
-            return True, component_type
-
+    before = strip_comments_and_strings(content[:offset])
+    depth = 0
+    # Walk back to the innermost unclosed "(" and check it opens a component's parameter list
+    for i in range(len(before) - 1, -1, -1):
+        if before[i] == ")":
+            depth += 1
+        elif before[i] == "(":
+            if depth == 0:
+                head = _COMPONENT_HEAD_RE.search(before[:i])
+                return (True, head.group(1)) if head else (False, None)
+            depth -= 1
     return False, None
 
 

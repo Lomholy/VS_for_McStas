@@ -69,3 +69,10 @@ def test_build_completion_items_fuzzy_filters_and_preselects_the_best_match():
     items = build_completion_items(doc, 0, len("COMPONENT origin = Ar"))
     assert items[0]["label"] == "Arm"
     assert items[0]["preselect"] is True
+
+
+def test_get_component_context_survives_nested_parens_in_values():
+    src = "TRACE\nCOMPONENT s = Source_simple(radius=sin(0.1), foc\n)\nEND\n"
+    offset = src.index("foc") + 3
+    assert get_component_context(src, offset) == (True, "Source_simple")
+    assert get_component_context(src, src.index("END")) == (False, None)
