@@ -5,6 +5,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const vscode = require("vscode");
+const componentProvider_1 = require("../componentProvider");
 const EXTENSION_ID = 'lomholy.vs-for-mcstas';
 const INSTR = `DEFINE INSTRUMENT test(L=1)
 TRACE
@@ -58,6 +59,21 @@ suite('Extension', () => {
         const position = new vscode.Position(2, 'COMPONENT origin = Ar'.length);
         const list = await waitFor(() => vscode.commands.executeCommand('vscode.executeCompletionItemProvider', doc.uri, position), l => l.items.length > 0, 50000);
         assert.ok(list.items.some(i => (typeof i.label === 'string' ? i.label : i.label.label) === 'Arm'));
+    });
+    test('reads .comp files from the chosen conda environment', async () => {
+        const env = fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-env-'));
+        const comp = path.join(env, 'share', 'mcstas', 'resources', 'sources', 'Source_simple.comp');
+        fs.mkdirSync(path.dirname(comp), { recursive: true });
+        fs.writeFileSync(comp, 'DEFINE COMPONENT Source_simple\n');
+        const config = vscode.workspace.getConfiguration('mcstas');
+        await config.update('condaEnvironment', env, vscode.ConfigurationTarget.Global);
+        try {
+            assert.strictEqual((0, componentProvider_1.resolveCompPathFromConda)('sources', 'Source_simple'), comp);
+            assert.strictEqual((0, componentProvider_1.resolveCompPathFromConda)('sources', 'Not_a_component'), undefined);
+        }
+        finally {
+            await config.update('condaEnvironment', undefined, vscode.ConfigurationTarget.Global);
+        }
     });
 });
 //# sourceMappingURL=extension.test.js.map

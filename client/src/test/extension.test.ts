@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { resolveCompPathFromConda } from '../componentProvider';
 
 const EXTENSION_ID = 'lomholy.vs-for-mcstas';
 
@@ -73,5 +74,20 @@ suite('Extension', () => {
 			50000
 		);
 		assert.ok(list.items.some(i => (typeof i.label === 'string' ? i.label : i.label.label) === 'Arm'));
+	});
+
+	test('reads .comp files from the chosen conda environment', async () => {
+		const env = fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-env-'));
+		const comp = path.join(env, 'share', 'mcstas', 'resources', 'sources', 'Source_simple.comp');
+		fs.mkdirSync(path.dirname(comp), { recursive: true });
+		fs.writeFileSync(comp, 'DEFINE COMPONENT Source_simple\n');
+		const config = vscode.workspace.getConfiguration('mcstas');
+		await config.update('condaEnvironment', env, vscode.ConfigurationTarget.Global);
+		try {
+			assert.strictEqual(resolveCompPathFromConda('sources', 'Source_simple'), comp);
+			assert.strictEqual(resolveCompPathFromConda('sources', 'Not_a_component'), undefined);
+		} finally {
+			await config.update('condaEnvironment', undefined, vscode.ConfigurationTarget.Global);
+		}
 	});
 });
