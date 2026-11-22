@@ -7,6 +7,7 @@ package, so it works in any editor that speaks the Language Server Protocol.
 | Editor | Language server | Syntax highlighting |
 |---|---|---|
 | [VS Code](#vs-code) | yes, installed by the extension | yes |
+| [VSCodium](#vscodium) | yes, installed by the extension | yes |
 | [Neovim](#neovim) | yes | yes, McStas Vim syntax |
 | [Emacs](#emacs) | yes, with eglot | C highlighting |
 | [Helix](#helix) | yes | C highlighting |
@@ -15,11 +16,11 @@ package, so it works in any editor that speaks the Language Server Protocol.
 | [Xcode](#xcode) | no | no |
 
 The component browser, the formatter and the run/display/plot buttons are part
-of the VS Code extension only.
+of the VS Code extension only, which also runs in VSCodium.
 
 ## The language server
 
-Every editor except VS Code needs the server installed once. It needs
+Every editor except VS Code and VSCodium needs the server installed once. It needs
 Python 3.9 or newer. Install it with [pipx](https://pipx.pypa.io), which gives
 the server its own virtual environment and puts `mcstas-language-server` in
 `~/.local/bin`:
@@ -52,6 +53,25 @@ view, or run `ext install lomholy.vs-for-mcstas` from the Quick Open bar
 (Ctrl+P / Cmd+P). The extension installs the language server itself on first
 use; it only needs `python3` (3.9 or newer) on PATH. See the
 [README](README.md) for its features.
+
+## VSCodium
+
+VSCodium installs extensions from Open VSX, where VS_for_McStas is not
+published, so install it from the `.vsix` file attached to each
+[GitHub release](https://github.com/Lomholy/VS_for_McStas/releases):
+
+1. Download `vs-for-mcstas-<version>.vsix` from the latest release.
+2. In VSCodium, open the Extensions view, click `...` at the top and choose
+   **Install from VSIX...**, then pick the file. Or in a terminal:
+
+   ```bash
+   codium --install-extension vs-for-mcstas-2.6.0.vsix
+   ```
+
+Everything then works as in VS Code: the extension installs the language
+server on first use and only needs `python3` (3.9 or newer) on PATH. VSCodium
+does not update `.vsix` installs, so install the new file from the releases
+page when a new version comes out.
 
 ## Neovim
 

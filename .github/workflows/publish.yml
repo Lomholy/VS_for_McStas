@@ -1,4 +1,4 @@
-name: Publish to VS Code Marketplace
+name: Publish to VS Code Marketplace and attach .vsix
 
 on:
   release:
@@ -31,3 +31,22 @@ jobs:
           fi
       # vsce runs the vscode:prepublish compile step itself; --oidc needs vsce 4.1.0+ and Node 22+
       - run: npx --yes @vscode/vsce@4.1.0 publish --oidc
+
+  # Attaches the .vsix to the release, for VSCodium and other offline installs
+  vsix:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      # Writes vs-for-mcstas-<version>.vsix
+      - run: npx --yes @vscode/vsce@4.1.0 package
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" vs-for-mcstas-*.vsix --repo "$GITHUB_REPOSITORY"
