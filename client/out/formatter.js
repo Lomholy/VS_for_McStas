@@ -8,10 +8,10 @@ exports.formatMetaLanguage = formatMetaLanguage;
 const child_process = require("child_process");
 const formatConfig_1 = require("./formatConfig");
 const PRE_ESCAPE = '//__ESC__PRE';
-// === Helper: run clang-format with style=file and assume-filename ===
-function runClangFormat(code, clangFormatPath, assumeFilename) {
+// Runs clang-format on `code` with the style from `styleFile` (needs clang-format 14 or newer)
+function runClangFormat(code, clangFormatPath, styleFile) {
     return new Promise((resolve, reject) => {
-        const args = ['-style', 'file', '-assume-filename', assumeFilename];
+        const args = [`--style=file:${styleFile}`];
         const proc = child_process.spawn(clangFormatPath, args, { shell: false });
         let stdout = '';
         let stderr = '';
@@ -84,7 +84,7 @@ function hasNonPercentLine(inner) {
  * Format the *inner* with clang-format, preserving line endings and treating
  * %/# lines as comments for indentation. Mirrors Python `_format_preserving_percent_lines`.
  */
-async function formatInnerLikePython(inner, clangFormatPath, assumeFilename) {
+async function formatInnerLikePython(inner, clangFormatPath, styleFile) {
     const saved = [];
     let chunk = escapePrecompilerLines(inner, saved);
     // Python strips one trailing newline before sending to clang-format and remembers it
@@ -94,7 +94,7 @@ async function formatInnerLikePython(inner, clangFormatPath, assumeFilename) {
         trailingNL = '\n';
     }
     // Run clang-format
-    let formatted = await runClangFormat(chunk, clangFormatPath, assumeFilename);
+    let formatted = await runClangFormat(chunk, clangFormatPath, styleFile);
     // clang-format usually adds a trailing newline; strip exactly one (if present)
     if (formatted.endsWith('\n')) {
         formatted = formatted.slice(0, -1);

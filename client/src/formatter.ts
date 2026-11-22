@@ -3,14 +3,14 @@ import { getFormatterConfig } from './formatConfig';
 
 const PRE_ESCAPE = '//__ESC__PRE';
 
-// === Helper: run clang-format with style=file and assume-filename ===
+// Runs clang-format on `code` with the style from `styleFile` (needs clang-format 14 or newer)
 function runClangFormat(
   code: string,
   clangFormatPath: string,
-  assumeFilename: string
+  styleFile: string
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const args = ['-style', 'file', '-assume-filename', assumeFilename];
+    const args = [`--style=file:${styleFile}`];
     const proc = child_process.spawn(clangFormatPath, args, { shell: false });
 
     let stdout = '';
@@ -90,7 +90,7 @@ function hasNonPercentLine(inner: string): boolean {
 async function formatInnerLikePython(
   inner: string,
   clangFormatPath: string,
-  assumeFilename: string
+  styleFile: string
 ): Promise<string> {
   const saved: string[] = [];
   let chunk = escapePrecompilerLines(inner, saved);
@@ -102,7 +102,7 @@ async function formatInnerLikePython(
     trailingNL = '\n';
   }
   // Run clang-format
-  let formatted = await runClangFormat(chunk, clangFormatPath, assumeFilename);
+  let formatted = await runClangFormat(chunk, clangFormatPath, styleFile);
 
   // clang-format usually adds a trailing newline; strip exactly one (if present)
   if (formatted.endsWith('\n')) {
