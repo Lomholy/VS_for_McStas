@@ -14,33 +14,15 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onLanguage"
-  ],
   "main": "./client/out/extension",
   "contributes": {
     "configuration": {
-      "title": "Component Viewer",
+      "title": "McStas",
       "properties": {
-        "componentViewer.rootPath": {
-          "type": "string",
-          "default": "",
-          "description": "The root path for the Component Viewer tree view."
-        },
-        "componentViewer.condaEnv": {
-          "type": "string",
-          "default": "",
-          "description": "The name of the used conda environment"
-        },
         "mcstas.formatter.clangFormatPath": {
           "type": "string",
           "default": "clang-format",
           "markdownDescription": "Path to the `clang-format` executable. If not set, it must be in PATH."
-        },
-        "mcstas.formatter.styleFile": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Path used as `-assume-filename` for style discovery (typically your workspace `.clang-format`)."
         }
       }
     },
@@ -63,15 +45,6 @@
       ]
     },
     "commands": [
-      {
-        "command": "vs-for-mcstas.addcomponent",
-        "title": "Insert Component",
-        "category": "McStas",
-        "icon": {
-          "light": "./media/mcstas.svg",
-          "dark": "./media/mcstas.svg"
-        }
-      },
       {
         "command": "mcstas.openCompFile",
         "title": "Open Component File",
@@ -113,18 +86,6 @@
         }
       },
       {
-        "command": "mcstas.launchMcstasTerminal",
-        "title": "McStas for Windows"
-      },
-      {
-        "command": "mcstas.launchCondaWMcstas",
-        "title": "McStas for Mac"
-      },
-      {
-        "command": "mcstas.chooseMcStasResourceFolder",
-        "title": "Set McStas Folder"
-      },
-      {
         "command": "mcstas.openClangFormatHelp",
         "title": "McStas: How to Install clang-format"
       },
@@ -160,11 +121,6 @@
           "command": "mcstas.mcplot",
           "when": "view == Component_viewer",
           "group": "dot_group"
-        },
-        {
-          "command": "mcstas.chooseMcStasResourceFolder",
-          "when": "view == Component_viewer",
-          "group": "dot_group"
         }
       ]
     },
@@ -172,7 +128,7 @@
       {
         "id": "mccode",
         "aliases": [
-          "mccode",
+          "McStas",
           "mccode"
         ],
         "extensions": [
@@ -225,5 +181,7 @@
     "type": "string",
     "default": "clang-format",
     "markdownDescription": "Path to clang-format executable if not in PATH."
-  }
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "media/icon.png"
 }
