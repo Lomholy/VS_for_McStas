@@ -8,6 +8,7 @@ async function mcplotCommand() {
         canSelectMany: false,
         canSelectFolders: true,
         canSelectFiles: false,
+        defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
         openLabel: 'Select simulation output folder'
     });
     if (!folderUris || folderUris.length === 0) {
