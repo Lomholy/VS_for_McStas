@@ -10,11 +10,15 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # OIDC token for Marketplace Trusted Publishing; no stored Personal Access Token
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - run: npm ci
       # The release tag (e.g. v2.6.0) must match the version in package.json
       - env:
@@ -25,7 +29,5 @@ jobs:
             echo "Release tag $TAG does not match package.json version $version"
             exit 1
           fi
-      # vsce runs the vscode:prepublish compile step itself
-      - run: npx --yes @vscode/vsce@3.6.0 publish
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      # vsce runs the vscode:prepublish compile step itself; --oidc needs vsce 4.1.0+ and Node 22+
+      - run: npx --yes @vscode/vsce@4.1.0 publish --oidc
