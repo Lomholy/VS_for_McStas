@@ -16,7 +16,10 @@ from lsprotocol import types as lsp
 
 from .data import get_components
 
-_COMPONENT_PATTERN = re.compile(r"^[\t ]*(COMPONENT)\s+(?:[A-Za-z_]\w*)*\s*=\s*([A-Za-z_]\w*)")
+# [REMOVABLE] [CPU] [SPLIT [n]] COMPONENT name = Type
+_COMPONENT_PATTERN = re.compile(
+    r"^[\t ]*(?:REMOVABLE\s+)?(?:CPU\s+)?(?:SPLIT\b.*?\s)?(COMPONENT)\s+(?:[A-Za-z_]\w*)*\s*=\s*([A-Za-z_]\w*)"
+)
 _MD_ESCAPE = re.compile(r"([\\`*_}\[#+\-!.])")
 
 
