@@ -1,4 +1,4 @@
-name: Update component data
+name: Update McCode component data and clang-format style
 
 on:
   schedule:
@@ -29,10 +29,14 @@ jobs:
           git clone --depth 1 --branch "$TAG" --filter=blob:none --sparse https://github.com/mccode-dev/McCode.git "$RUNNER_TEMP/McCode"
           git -C "$RUNNER_TEMP/McCode" sparse-checkout set mcstas-comps
           python server/python/scripts/generate_comps.py "$RUNNER_TEMP/McCode/mcstas-comps"
+          # Sparse checkout in cone mode also checks out the repository root files
+          cp "$RUNNER_TEMP/McCode/.clang-format" media/.clang-format
       - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           branch: update-comps
-          title: Update component data to McCode ${{ steps.tag.outputs.tag }}
-          commit-message: Update component data to McCode ${{ steps.tag.outputs.tag }}
-          body: Regenerated `mcstas-comps.json` from the `mcstas-comps` folder of McCode ${{ steps.tag.outputs.tag }} with `server/python/scripts/generate_comps.py`.
-          add-paths: server/python/src/mcstas_ls/data/mcstas-comps.json
+          title: Update component data and clang-format style to McCode ${{ steps.tag.outputs.tag }}
+          commit-message: Update component data and clang-format style to McCode ${{ steps.tag.outputs.tag }}
+          body: Regenerated `mcstas-comps.json` from the `mcstas-comps` folder of McCode ${{ steps.tag.outputs.tag }} with `server/python/scripts/generate_comps.py`, and copied its `.clang-format` to `media/.clang-format`.
+          add-paths: |
+            server/python/src/mcstas_ls/data/mcstas-comps.json
+            media/.clang-format

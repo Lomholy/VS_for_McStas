@@ -56,13 +56,21 @@ function indentLines(core: string, indentStr: string, indentBlankLines: boolean)
   return lines.join('');
 }
 
-// === Escape %/# lines so clang-format treats them as comments for indentation ===
-function escapePrecompilerLines(s: string): string {
-  return s.replace(/^([ \t]*)([%#])/gm, (_m, lead, sym) => `${lead}${PRE_ESCAPE}${sym}`);
+// Port of _escape_precompiler_line / _unescape_precompiler_line in McCode's devel/bin/mccode-clangformat.
+// Each %/# line, with its backslash-continued lines, is replaced by a placeholder comment
+// PRE_ESCAPE<n> so clang-format indents it but never reflows it; continuation lines are stored
+// relative to the directive's indent and put back at the new indent.
+export function escapePrecompilerLines(s: string, saved: string[]): string {
+  return s.replace(/^([ \t]*)([%#](?:.*\\\r?\n)*.*)$/gm, (_m, lead: string, body: string) => {
+    saved.push(body.replace(/[ \t]+$/, '').split('\n' + lead).join('\n'));
+    // A closing */ stays visible, e.g. for # lines inside a block comment
+    return lead + PRE_ESCAPE + (saved.length - 1) + (body.includes('*/') ? '*/' : '');
+  });
 }
 
-function unescapePrecompilerLines(s: string): string {
-  return s.replace(new RegExp(PRE_ESCAPE, 'g'), '');
+export function unescapePrecompilerLines(s: string, saved: string[]): string {
+  return s.replace(new RegExp(`^([ \\t]*)${PRE_ESCAPE}(\\d+)(?:\\*/)?`, 'gm'),
+    (_m, lead: string, index: string) => lead + saved[Number(index)].split('\n').join('\n' + lead));
 }
 
 // === EXACT same block regex as Python ===
@@ -84,9 +92,8 @@ async function formatInnerLikePython(
   clangFormatPath: string,
   assumeFilename: string
 ): Promise<string> {
-  // Escape
-  const escapedLines = splitLinesPreserveEOL(inner).map((L) => escapePrecompilerLines(L));
-  let chunk = escapedLines.join('');
+  const saved: string[] = [];
+  let chunk = escapePrecompilerLines(inner, saved);
 
   // Python strips one trailing newline before sending to clang-format and remembers it
   let trailingNL = '';
@@ -104,19 +111,18 @@ async function formatInnerLikePython(
   // Re-add the newline we preserved to maintain control
   formatted = formatted + trailingNL;
 
-  // Unescape
-  formatted = unescapePrecompilerLines(formatted);
-  return formatted;
+  return unescapePrecompilerLines(formatted, saved);
 }
 
 
-async function formatComponent(source) {
+async function formatComponent(source: string) {
   const { clangFormatPath, styleFilePath } = getFormatterConfig();
+  const blockRe = new RegExp(BLOCK_RE);
   let result = '';
   let lastIndex = 0;
 
   let m: RegExpExecArray | null;
-  while ((m = BLOCK_RE.exec(source)) !== null) {
+  while ((m = blockRe.exec(source)) !== null) {
     const [fullSpan, opening, inner, closing] = m;
 
     // Append text before this block
@@ -125,7 +131,7 @@ async function formatComponent(source) {
     // If inner is empty or contains only blank or % lines, leave the whole block unchanged
     if (!hasNonPercentLine(inner)) {
       result += fullSpan;
-      lastIndex = BLOCK_RE.lastIndex;
+      lastIndex = blockRe.lastIndex;
       continue;
     }
 
@@ -153,7 +159,7 @@ async function formatComponent(source) {
       result += block;
     }
 
-    lastIndex = BLOCK_RE.lastIndex;
+    lastIndex = blockRe.lastIndex;
   }
 
   // Append remainder
@@ -321,7 +327,6 @@ function formatDefineParamsOnePerLine(params: string): string {
   for (let i = 0; i < parts.length; i += 1) {
 
     const p1 = parts[i];
-    console.log(p1)
     if (parts[i + 1])
       out += (`${indent}${p1},\n`);
     else
@@ -350,7 +355,7 @@ export function formatDefineInstrumentBlock(source: string): string {
 }
 
 async function formatInstrument(source: string) {
-
+  source = await formatComponent(source);
   const comps = captureInstrumentComponents(source);
 
   // 2) Build replacements
