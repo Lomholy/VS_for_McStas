@@ -167,9 +167,9 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.17.46",
     "@types/vscode": "^1.99.0",
-    "@typescript-eslint/eslint-plugin": "^8.28.0",
-    "@typescript-eslint/parser": "^8.28.0",
-    "@vscode/test-cli": "^0.0.10",
+    "@typescript-eslint/eslint-plugin": "^8.73.0",
+    "@typescript-eslint/parser": "^8.73.0",
+    "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "eslint": "^9.23.0",
     "typescript": "^5.8.3"
@@ -183,5 +183,11 @@
     "markdownDescription": "Path to clang-format executable if not in PATH."
   },
   "license": "SEE LICENSE IN LICENSE",
-  "icon": "media/icon.png"
+  "icon": "media/icon.png",
+  "overrides": {
+    "serialize-javascript": "^7.1.4",
+    "diff@>=6 <8.0.3": "^8.0.3",
+    "glob@>=9 <=14.0.1": "^14.0.6",
+    "minimatch@>=7 <11.0.1": "^11.0.9"
+  }
 }
