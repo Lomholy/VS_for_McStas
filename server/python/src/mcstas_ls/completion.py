@@ -237,42 +237,61 @@ def build_completion_items(content: str, line: int, character: int) -> list[dict
         return []
 
     components = get_components()
-    aggregated: list[dict[str, Any]] = []
+    spec = components.get(component_type) if in_component_block else None
+    variables = [
+        {"label": v, "detail": "Parameter from DECLARE section", "kind": lsp.CompletionItemKind.Variable}
+        for v in declared_variables
+    ] + [
+        {"label": p, "detail": "INSTRUMENT input parameter", "kind": lsp.CompletionItemKind.Variable}
+        for p in input_parameters
+    ]
 
-    if in_component_block and component_type is not None:
-        spec = components.get(component_type)
-        if spec is not None:
-            for name in spec.get("parameter_names", []):
-                comment = spec.get("parameter_comments", {}).get(name, "")
-                aggregated.append(
-                    {
-                        "label": name,
-                        "detail": f"{name} is a parameter for {component_type}",
-                        "documentation": comment,
-                        "kind": lsp.CompletionItemKind.Property,
-                    }
-                )
-
-    aggregated.extend(_BASE_SUGGESTIONS)
-
-    if not in_component_block:
+    if isinstance(spec, dict) and not _in_parameter_value(content, offset):
+        # Typing a parameter name inside Type(...): only that component's parameters
+        aggregated = [
+            {
+                "label": name,
+                "detail": f"{name} is a parameter for {component_type}",
+                "documentation": spec.get("parameter_comments", {}).get(name, ""),
+                "kind": lsp.CompletionItemKind.Property,
+            }
+            for name in spec.get("parameter_names", [])
+        ]
+    elif in_component_block:
+        # A parameter value, or a component without data: the instrument's variables
+        aggregated = variables
+    else:
         head = _snippet_head(line_until_cursor)
-        for key, spec in components.items():
-            if spec is not None:
-                aggregated.append(_component_snippet_item(key, spec, head))
-
-    for v in declared_variables:
-        aggregated.append({"label": v, "detail": "Parameter from DECLARE section", "kind": lsp.CompletionItemKind.Variable})
-
-    for p in input_parameters:
-        aggregated.append({"label": p, "detail": "INSTRUMENT input parameter", "kind": lsp.CompletionItemKind.Variable})
+        aggregated = list(_BASE_SUGGESTIONS)
+        for key, comp in components.items():
+            if comp is not None:
+                aggregated.append(_component_snippet_item(key, comp, head))
+        aggregated += variables
 
     items = _dedupe_by_label(aggregated)
 
     query = current_prefix.strip()
     if query:
         return _fuzzy_filter(items, query)
-    return items[:500]
+    # Without a sortText, editors sort by label and the order above is lost
+    return [{**item, "sortText": str(idx).zfill(6)} for idx, item in enumerate(items[:500])]
+
+
+def _in_parameter_value(content: str, offset: int) -> bool:
+    """True if the cursor is after `name =` in the current parameter of a component call."""
+    depth = 0
+    for ch in reversed(strip_comments_and_strings(content[:offset])):
+        if ch in ")]}":
+            depth += 1
+        elif ch in "([{":
+            if depth == 0:
+                return False
+            depth -= 1
+        elif depth == 0 and ch == ",":
+            return False
+        elif depth == 0 and ch == "=":
+            return True
+    return False
 
 
 def _to_completion_item(item: dict[str, Any]) -> lsp.CompletionItem:

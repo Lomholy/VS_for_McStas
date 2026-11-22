@@ -1,3 +1,4 @@
+from mcstas_ls.data import get_components
 from mcstas_ls.completion import (
     build_completion_items,
     get_component_context,
@@ -109,3 +110,26 @@ def test_fuzzy_filter_ignores_case():
 def test_no_items_after_non_component_paren():
     doc = "COMPONENT a = Arm()\nAT ("
     assert build_completion_items(doc, 1, len("AT (")) == []
+
+
+PARAM_DOC = """DEFINE INSTRUMENT t(L=1)
+DECLARE
+%{
+  double w;
+%}
+TRACE
+COMPONENT s = Source_simple(radius = 0.1, dist = sin(L, w),
+"""
+
+
+def test_parameter_name_position_offers_only_the_components_parameters_in_order():
+    line = PARAM_DOC.split("\n")[6]
+    items = build_completion_items(PARAM_DOC, 6, len(line))
+    assert [it["label"] for it in items] == get_components()["Source_simple"]["parameter_names"]
+    assert [it["sortText"] for it in items] == sorted(it["sortText"] for it in items)
+
+
+def test_parameter_value_position_offers_instrument_variables():
+    line = "COMPONENT s = Source_simple(radius = "
+    doc = PARAM_DOC.replace(PARAM_DOC.split("\n")[6], line)
+    assert {it["label"] for it in build_completion_items(doc, 6, len(line))} == {"w", "L"}
