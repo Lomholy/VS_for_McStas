@@ -30,7 +30,9 @@ pipx install "git+https://github.com/Lomholy/VS_for_McStas#subdirectory=server/p
 pipx ensurepath
 ```
 
-Update it later with `pipx upgrade mcstas-language-server`. Because the server
+Update it later with `pipx reinstall mcstas-language-server`, which installs
+the latest commit. `pipx upgrade` does not, because the package version does
+not change between commits. Because the server
 lives in its own environment, it does not matter which Python or conda
 environment is active when Neovim starts.
 
