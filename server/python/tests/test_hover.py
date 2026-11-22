@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+
+from lsprotocol import types as lsp
+
 from mcstas_ls.data import get_components
-from mcstas_ls.hover import build_component_hover_markdown, find_hovered_component
+from mcstas_ls.hover import build_component_hover_markdown, find_hovered_component, hover
 
 
 def test_find_hovered_component_matches_cursor_over_the_type_name():
@@ -48,3 +52,14 @@ def test_build_component_hover_markdown_handles_component_with_no_parameters():
     text = hover.contents.value
     assert "## Arm" in text
     assert "**Parameters**" in text
+
+
+def test_hover_shows_unavailable_message_for_component_without_data():
+    doc = SimpleNamespace(source="COMPONENT r = Rotator()\n")
+    ls = SimpleNamespace(workspace=SimpleNamespace(get_text_document=lambda uri: doc))
+    params = lsp.HoverParams(
+        text_document=lsp.TextDocumentIdentifier(uri="file:///a.instr"),
+        position=lsp.Position(line=0, character=16),
+    )
+    text = hover(ls, params).contents.value
+    assert text == "## Rotator\n\nComponent information is unavailable"
