@@ -22,8 +22,9 @@ component browser and an auto formatter.
 - **Formatter:** format a file with Shift+Alt+F (Windows), Shift+Option+F
   (macOS) or Ctrl+Shift+I (Linux). It formats the C code in `%{ %}` blocks the
   same way as McCode's `mccode-clangformat`, with McCode's `.clang-format`
-  style, and lays out component parameters. It needs `clang-format` on PATH or
-  set in `mcstas.formatter.clangFormatPath`. Formatting is not run on save.
+  style, and lays out component parameters. clang-format is installed together
+  with the language server; set `mcstas.formatter.clangFormatPath` to use a
+  different one. Formatting is not run on save.
 - **Run, display and plot:** the buttons in the component browser's title bar
   run `mcrun`, `mcdisplay` and `mcplot` in a terminal, so McStas must be
   available in that terminal.
@@ -106,7 +107,8 @@ Minor
 - The formatter matches McCode's `mccode-clangformat`: macro continuation lines
   no longer drift right on every format, `%{ %}` blocks in `.instr` files are
   formatted too, and the `.clang-format` style is kept in sync with McCode.
-  clang-format is only looked up when you format.
+  clang-format now comes with the language server, so it no longer has to be
+  installed separately, and it is only looked up when you format.
 - `mcrun` and `mcdisplay` save the file first and run in its folder, so
   instruments in subfolders and paths with spaces work.
 - The component form marks required parameters, and webviews escape their
