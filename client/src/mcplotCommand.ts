@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { inCondaEnv } from './condaEnv';
 
 export async function mcplotCommand(){
     // Prompt user to pick a folder
@@ -19,5 +20,5 @@ export async function mcplotCommand(){
     // Launch mcplot with the selected folder
     const terminal = vscode.window.createTerminal('McStas Plot');
     terminal.show();
-    terminal.sendText(`mcplot "${folderPath}"`);
+    terminal.sendText(inCondaEnv(`mcplot "${folderPath}"`));
 }

@@ -4,6 +4,7 @@ exports.mcdisplayCommand = mcdisplayCommand;
 const vscode = require("vscode");
 const path = require("path");
 const mcrunView_1 = require("./mcrunView");
+const condaEnv_1 = require("./condaEnv");
 function mcdisplayCommand() {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -42,7 +43,7 @@ function mcdisplayCommand() {
             }
             const terminal = vscode.window.createTerminal({ name: 'McStas Display', cwd: path.dirname(file.uri.fsPath) });
             terminal.show();
-            terminal.sendText(`mcdisplay "${path.basename(file.uri.fsPath)}" ${args}`);
+            terminal.sendText((0, condaEnv_1.inCondaEnv)(`mcdisplay "${path.basename(file.uri.fsPath)}" ${args}`));
         }
     });
 }

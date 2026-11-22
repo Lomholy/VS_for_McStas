@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getWebviewHtml } from './mcrunView';
+import { inCondaEnv } from './condaEnv';
 
 export function mcdisplayCommand(){
     const editor = vscode.window.activeTextEditor;
@@ -53,7 +54,7 @@ export function mcdisplayCommand(){
         }
         const terminal = vscode.window.createTerminal({ name: 'McStas Display', cwd: path.dirname(file.uri.fsPath) });
         terminal.show();
-        terminal.sendText(`mcdisplay "${path.basename(file.uri.fsPath)}" ${args}`);
+        terminal.sendText(inCondaEnv(`mcdisplay "${path.basename(file.uri.fsPath)}" ${args}`));
     }
     });
 }
