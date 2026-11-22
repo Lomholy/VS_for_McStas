@@ -1,8 +1,8 @@
 # mcstas-language-server (Python)
 
-A `pygls`-based Python rewrite of the TypeScript language server in `../`
-(`server/src`). See [`PLAN.md`](./PLAN.md) for the full rewrite plan and
-rationale, and what's still open (packaging/distribution, mainly).
+The `pygls`-based McStas language server used by the VS Code extension and
+Neovim. It replaced the earlier TypeScript server. See [`PLAN.md`](./PLAN.md)
+for status and open work.
 
 ## Status
 
