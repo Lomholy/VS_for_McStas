@@ -128,7 +128,8 @@ class ComponentProvider {
             const category = comp.category || 'Uncategorized';
             if (!this.data[category])
                 this.data[category] = [];
-            this.data[category].push({ name: comp.name, category });
+            // Components without data are stored as a string, so fall back to the key
+            this.data[category].push({ name: comp.name ?? key, category });
         }
     }
 }
