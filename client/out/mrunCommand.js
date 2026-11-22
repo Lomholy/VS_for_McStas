@@ -10,8 +10,9 @@ function mcrunCommand() {
         vscode.window.showErrorMessage('No active editor found.');
         return;
     }
-    const fileName = path.basename(editor.document.uri.fsPath);
-    const fileContent = editor.document.getText();
+    const document = editor.document;
+    const fileName = path.basename(document.uri.fsPath);
+    const fileContent = document.getText();
     const defineMatch = fileContent.match(/DEFINE\s+INSTRUMENT\s+(\w+)\s*\(([^)]*)\)/s);
     if (!defineMatch) {
         vscode.window.showErrorMessage('No DEFINE INSTRUMENT(...) block found.');
@@ -36,9 +37,13 @@ function mcrunCommand() {
             const args = Object.entries(values)
                 .map(([k, v]) => `${k}=${/^\d+(\.\d+)?$/.test(v) ? v : `"${v}"`}`)
                 .join(' ');
-            const terminal = vscode.window.createTerminal('McStas Simulation');
+            // mcrun reads the file from disk and resolves it relative to the terminal's directory
+            if (document.isDirty && !(await document.save())) {
+                return;
+            }
+            const terminal = vscode.window.createTerminal({ name: 'McStas Simulation', cwd: path.dirname(document.uri.fsPath) });
             terminal.show();
-            terminal.sendText(`mcrun ${fileName} ${args}`);
+            terminal.sendText(`mcrun "${fileName}" ${args}`);
         }
     });
 }
