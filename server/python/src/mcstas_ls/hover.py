@@ -116,5 +116,8 @@ def hover(ls, params: lsp.HoverParams) -> lsp.Hover | None:
     spec = get_components().get(value_name)
     if spec is None:
         return None
+    if isinstance(spec, str):
+        md = f"## {_escape_md(value_name)}\n\n{_escape_md(spec)}"
+        return lsp.Hover(contents=lsp.MarkupContent(kind=lsp.MarkupKind.Markdown, value=md))
 
     return build_component_hover_markdown(spec)
