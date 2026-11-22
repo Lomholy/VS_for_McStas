@@ -15,6 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      # The integration test installs the language server into the extension's private venv
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm install
       # npm test's pretest hook runs compile + lint first; vscode-test
       # launches a real VS Code instance, which needs a display even
