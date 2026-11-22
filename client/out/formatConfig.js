@@ -174,7 +174,7 @@ async function tryCondaPrefixBins(log) {
     return tryCandidates(existing, log);
 }
 /**
- * Main detection: combines user hint, PATH, conda/mamba/micromamba probing.
+ * Main detection: user setting, the copy installed with the language server, PATH, conda/mamba/micromamba probing.
  */
 async function detectClangFormat(options = {}) {
     if (cachedClangFormatPath !== undefined) {
@@ -189,25 +189,33 @@ async function detectClangFormat(options = {}) {
             return found;
         }
     }
-    // 2) Fast PATH probe
+    // 2) The copy installed with the language server
+    if (options.bundledPath) {
+        const found = testCandidate(options.bundledPath, log);
+        if (found) {
+            cachedClangFormatPath = found;
+            return found;
+        }
+    }
+    // 3) Fast PATH probe
     const pathFound = tryPathFirst(log);
     if (pathFound) {
         cachedClangFormatPath = pathFound;
         return pathFound;
     }
-    // 3) If a conda env name is provided, try "conda/mamba/micromamba run -n <env>"
+    // 4) If a conda env name is provided, try "conda/mamba/micromamba run -n <env>"
     const runFound = tryCondaRun(options.condaEnvName, log);
     if (runFound) {
         cachedClangFormatPath = runFound;
         return runFound;
     }
-    // 4) Probe environment prefixes for a direct binary path
+    // 5) Probe environment prefixes for a direct binary path
     const prefixFound = await tryCondaPrefixBins(log);
     if (prefixFound) {
         cachedClangFormatPath = prefixFound;
         return prefixFound;
     }
-    // 5) On Windows, also try the common LLVM location
+    // 6) On Windows, also try the common LLVM location
     if (isWindows()) {
         const common = path.join('C:\\', 'Program Files', 'LLVM', 'bin', 'clang-format.exe');
         const found = testCandidate(common, log);
@@ -216,8 +224,7 @@ async function detectClangFormat(options = {}) {
             return found;
         }
     }
-    // If nothing found
-    cachedClangFormatPath = null;
+    // Not cached, so a later call looks again
     log?.('clang-format not found via PATH or conda/mamba/micromamba probing.');
     return null;
 }

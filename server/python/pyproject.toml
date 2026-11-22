@@ -6,6 +6,8 @@ requires-python = ">=3.9"
 dependencies = [
     "pygls>=2.0.0",
     "rapidfuzz>=3.6.0",
+    # Used by the VS Code extension's formatter; --style=file:<path> needs 14+
+    "clang-format>=14",
 ]
 
 [project.optional-dependencies]
