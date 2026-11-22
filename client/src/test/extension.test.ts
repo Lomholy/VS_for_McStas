@@ -103,6 +103,24 @@ suite('Extension', () => {
 		assert.ok(typed.includes('nx'), typed.slice(0, 20).join(', '));
 	});
 
+	test('after "name =" offers the instrument variables, not the component parameters', async function () {
+		this.timeout(60000);
+		const valueLabels = async (source: string, line: number, character: number) => {
+			const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-value-')), 'value.instr');
+			fs.writeFileSync(file, source);
+			const valueDoc = await vscode.workspace.openTextDocument(file);
+			await vscode.window.showTextDocument(valueDoc);
+			const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+				'vscode.executeCompletionItemProvider', valueDoc.uri, new vscode.Position(line, character), '=');
+			return list.items.map(i => (typeof i.label === 'string' ? i.label : i.label.label));
+		};
+		const withParams = await valueLabels('DEFINE INSTRUMENT v(L=1)\nTRACE\nCOMPONENT s = Source_simple(radius = \n', 2, 37);
+		console.log('after radius = (instrument has L):', withParams.slice(0, 10).join(', '));
+		const withoutParams = await valueLabels('DEFINE INSTRUMENT v()\nTRACE\nCOMPONENT s = Source_simple(radius = \n', 2, 37);
+		console.log('after radius = (no parameters):', withoutParams.slice(0, 10).join(', '));
+		assert.ok(!withParams.includes('yheight'), withParams.join(', '));
+	});
+
 	test('reads .comp files from the chosen conda environment', async () => {
 		const env = fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-env-'));
 		const comp = path.join(env, 'share', 'mcstas', 'resources', 'sources', 'Source_simple.comp');
