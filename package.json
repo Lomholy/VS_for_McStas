@@ -161,7 +161,12 @@
       {
         "language": "mlang"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[mccode]": {
+        "editor.wordBasedSuggestions": "off"
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

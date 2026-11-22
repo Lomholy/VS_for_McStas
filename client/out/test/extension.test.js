@@ -91,10 +91,10 @@ suite('Extension', () => {
             return list.items.map(i => (typeof i.label === 'string' ? i.label : i.label.label));
         };
         const withParams = await valueLabels('DEFINE INSTRUMENT v(L=1)\nTRACE\nCOMPONENT s = Source_simple(radius = \n', 2, 37);
-        console.log('after radius = (instrument has L):', withParams.slice(0, 10).join(', '));
+        assert.deepStrictEqual(withParams, ['L']);
+        // Nothing to offer: no word-based suggestions from the open documents either
         const withoutParams = await valueLabels('DEFINE INSTRUMENT v()\nTRACE\nCOMPONENT s = Source_simple(radius = \n', 2, 37);
-        console.log('after radius = (no parameters):', withoutParams.slice(0, 10).join(', '));
-        assert.ok(!withParams.includes('yheight'), withParams.join(', '));
+        assert.deepStrictEqual(withoutParams, []);
     });
     test('reads .comp files from the chosen conda environment', async () => {
         const env = fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-env-'));
