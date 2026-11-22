@@ -6,6 +6,7 @@ const vscode = require("vscode");
 const createTemplateInstr_1 = require("./createTemplateInstr");
 const dialogue_1 = require("./dialogue");
 const mrunCommand_1 = require("./mrunCommand");
+const fs = require("fs");
 const path = require("path");
 const vscode_1 = require("vscode");
 const node_1 = require("vscode-languageclient/node");
@@ -89,11 +90,16 @@ async function activate(context) {
     client.start();
     // clang-format is looked up on the first format request, and again after a failed lookup
     const styleFilePath = path.join(context.extensionPath, 'media', '.clang-format');
+    // The language server's Python package depends on clang-format, so pip puts it next to the server executable
+    const bundledClangFormat = pythonServer && fs.existsSync(pythonServer)
+        ? path.join(path.dirname(fs.realpathSync(pythonServer)), process.platform === 'win32' ? 'clang-format.exe' : 'clang-format')
+        : undefined;
     let clangFormat;
     const provider = vscode.languages.registerDocumentFormattingEditProvider('mccode', {
         provideDocumentFormattingEdits: async (doc) => {
             clangFormat ?? (clangFormat = (0, formatConfig_1.detectClangFormat)({
                 userPath: vscode.workspace.getConfiguration('mcstas.formatter').get('clangFormatPath')?.trim() || undefined,
+                bundledPath: bundledClangFormat,
                 log: (m) => console.log(`[mcstas] ${m}`)
             }));
             const found = await clangFormat;
