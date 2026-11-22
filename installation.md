@@ -75,7 +75,7 @@ page when a new version comes out.
 
 ## Neovim
 
-Needs Neovim 0.11 or newer and [the language server](#the-language-server).
+Needs Neovim 0.11 or newer and [pipx](https://pipx.pypa.io).
 
 This repository is also a Neovim plugin that detects `.instr` and `.comp` files
 as filetype `mccode` and highlights them with the McStas Vim syntax file
@@ -83,13 +83,20 @@ as filetype `mccode` and highlights them with the McStas Vim syntax file
 Install it with [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
-{ "Lomholy/VS_for_McStas" },
+{ "Lomholy/VS_for_McStas", build = "pipx install --force server/python" },
 ```
 
-or without a plugin manager:
+The plugin itself does not include the language server, which is a Python
+package. The `build` line lets lazy.nvim install it with pipx from the plugin's
+`server/python` folder, and reinstall it whenever the plugin updates, so the
+server never gets out of date. Without it, install the server yourself as
+described in [the language server](#the-language-server).
+
+Without a plugin manager, clone the plugin and install the server:
 
 ```bash
 git clone https://github.com/Lomholy/VS_for_McStas.git ~/.local/share/nvim/site/pack/mcstas/start/VS_for_McStas
+pipx install --force ~/.local/share/nvim/site/pack/mcstas/start/VS_for_McStas/server/python
 ```
 
 Then add this to your `init.lua` to start the language server:
@@ -103,12 +110,22 @@ vim.lsp.config('mcstas', {
 vim.lsp.enable('mcstas')
 ```
 
-If Neovim is started from a GUI that does not see `~/.local/bin` on PATH, use
-`cmd = { vim.fn.expand('~/.local/bin/mcstas-language-server') }`.
-
 Open a `.instr` or `.comp` file and run `:checkhealth vim.lsp` to confirm that
 `mcstas` is attached. `K` shows the documentation of the component under the
 cursor and `<C-x><C-o>` completes component names and parameters.
+
+### "'mcstas-language-server' is not executable"
+
+`:checkhealth vim.lsp` shows this when Neovim cannot find the server on its
+PATH. Check with `:echo exepath('mcstas-language-server')`, which is empty in
+that case:
+
+- **Not installed:** add the `build` line above and run `:Lazy build VS_for_McStas`,
+  or install the server with pipx. Cloning the plugin alone does not install it.
+- **Installed, but not on Neovim's PATH:** run `pipx ensurepath` and start
+  Neovim from a new terminal. If Neovim is started from a GUI that does not
+  see `~/.local/bin`, use the full path:
+  `cmd = { vim.fn.expand('~/.local/bin/mcstas-language-server') }`.
 
 ## Emacs
 
