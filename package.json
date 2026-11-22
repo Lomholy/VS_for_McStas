@@ -194,9 +194,11 @@
   "license": "SEE LICENSE IN LICENSE",
   "icon": "media/icon.png",
   "overrides": {
-    "serialize-javascript": "^7.1.4",
-    "diff@>=6 <8.0.3": "^8.0.3",
-    "glob@>=9 <=14.0.1": "^14.0.6",
-    "minimatch@>=7 <11.0.1": "^11.0.9"
+    "@vscode/test-cli": {
+      "serialize-javascript": "^7.1.4",
+      "diff": "^8.0.3",
+      "glob": "^14.0.6",
+      "minimatch": "^11.0.9"
+    }
   }
 }

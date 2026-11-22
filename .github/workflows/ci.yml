@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: npm install
+      - run: npm ci
       # npm test's pretest hook runs compile + lint first; vscode-test
       # launches a real VS Code instance, which needs a display even
       # headless -- xvfb-run provides one on the Linux runner.
