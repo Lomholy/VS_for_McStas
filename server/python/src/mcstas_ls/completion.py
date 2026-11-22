@@ -20,7 +20,7 @@ import re
 from typing import Any
 
 from lsprotocol import types as lsp
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, utils
 
 from .data import get_components
 from .parse_helpers import (
@@ -48,6 +48,7 @@ _PREPROCESSOR_RE = re.compile(r"^\s*#")
 _VOID_ONLY_RE = re.compile(r"^\s*\bvoid\b\s*$")
 _COMPONENT_HEAD_RE = re.compile(r"COMPONENT\s+[A-Za-z_]\w*\s*=\s*([A-Za-z_]\w*)\s*$")
 _TRAILING_WORD_RE = re.compile(r"(\w*)$")
+_TYPED_COMPONENT_HEAD_RE = re.compile(r"\bCOMPONENT\s+\w+\s*=\s*\w*$")
 
 
 def get_input_parameters(content: str) -> list[str]:
@@ -128,12 +129,12 @@ def _extract_prefix(line_until_cursor: str) -> str:
     return match.group(1) if match else line_until_cursor
 
 
-def _component_snippet_item(key: str, spec: dict[str, Any]) -> dict[str, Any]:
+def _component_snippet_item(key: str, spec: dict[str, Any], head_typed: bool = False) -> dict[str, Any]:
     try:
         category = spec["category"]
         highlight = f"{key} From Category: {category}"
         param_missing_default = False
-        insert_lines = [f"COMPONENT $0 = {key}(\n"]
+        insert_lines = [f"{key}(\n" if head_typed else f"COMPONENT $0 = {key}(\n"]
 
         doc_lines = []
         for name in spec["parameter_names"]:
@@ -186,16 +187,15 @@ def _fuzzy_filter(items: list[dict[str, Any]], query: str, limit: int = 500) -> 
     # the kind of string that dilutes worst).
     scored: list[tuple[float, dict[str, Any]]] = []
     for item in items:
-        label_score = fuzz.WRatio(query, item["label"])
+        label_score = fuzz.WRatio(query, item["label"], processor=utils.default_process)
         detail = item.get("detail")
-        score = max(label_score, fuzz.WRatio(query, detail)) if detail else label_score
+        score = max(label_score, fuzz.WRatio(query, detail, processor=utils.default_process)) if detail else label_score
         if score >= 1:
             scored.append((score, item))
 
-    # A stable sort keeps ties in their original (insertion) order, so
-    # ranking is deterministic and doesn't depend on rapidfuzz's internal
-    # tie-breaking for equal scores either.
-    scored.sort(key=lambda pair: pair[0], reverse=True)
+    # Ties go to labels starting with the query, then to insertion order
+    # (stable sort), so ranking doesn't depend on rapidfuzz's tie-breaking.
+    scored.sort(key=lambda pair: (pair[0], pair[1]["label"].lower().startswith(query.lower())), reverse=True)
 
     out: list[dict[str, Any]] = []
     for idx, (_score, item) in enumerate(scored[:limit]):
@@ -222,6 +222,9 @@ def build_completion_items(content: str, line: int, character: int) -> list[dict
 
     offset = _offset_at(content, line, character)
     in_component_block, component_type = get_component_context(content, offset)
+    # Only a component's "(" opens a list: nothing useful follows "AT (" or a C call's "("
+    if not in_component_block and line_until_cursor.endswith("("):
+        return []
 
     components = get_components()
     aggregated: list[dict[str, Any]] = []
@@ -243,9 +246,10 @@ def build_completion_items(content: str, line: int, character: int) -> list[dict
     aggregated.extend(_BASE_SUGGESTIONS)
 
     if not in_component_block:
+        head_typed = bool(_TYPED_COMPONENT_HEAD_RE.search(line_until_cursor))
         for key, spec in components.items():
             if spec is not None:
-                aggregated.append(_component_snippet_item(key, spec))
+                aggregated.append(_component_snippet_item(key, spec, head_typed))
 
     for v in declared_variables:
         aggregated.append({"label": v, "detail": "Parameter from DECLARE section", "kind": lsp.CompletionItemKind.Variable})

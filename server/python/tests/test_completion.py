@@ -76,3 +76,29 @@ def test_get_component_context_survives_nested_parens_in_values():
     offset = src.index("foc") + 3
     assert get_component_context(src, offset) == (True, "Source_simple")
     assert get_component_context(src, src.index("END")) == (False, None)
+
+
+def test_snippet_after_typed_component_head_inserts_only_the_type():
+    doc = "COMPONENT s = Sou\n"
+    items = build_completion_items(doc, 0, len("COMPONENT s = Sou"))
+    item = next(it for it in items if it["label"] == "Source_simple")
+    assert item["insertText"].startswith("Source_simple(\n")
+    assert "COMPONENT" not in item["insertText"]
+
+
+def test_snippet_on_empty_line_inserts_full_component_block():
+    items = build_completion_items("Sou\n", 0, 3)
+    item = next(it for it in items if it["label"] == "Source_simple")
+    assert item["insertText"].startswith("COMPONENT $0 = Source_simple(\n")
+
+
+def test_fuzzy_filter_ignores_case():
+    doc = "COMPONENT a = arm"
+    assert build_completion_items(doc, 0, len(doc))[0]["label"] == "Arm"
+    doc = "COMPONENT a = s"
+    assert build_completion_items(doc, 0, len(doc))[0]["label"].startswith("S")
+
+
+def test_no_items_after_non_component_paren():
+    doc = "COMPONENT a = Arm()\nAT ("
+    assert build_completion_items(doc, 1, len("AT (")) == []

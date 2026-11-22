@@ -35,7 +35,7 @@ def hover(ls: LanguageServer, params: lsp.HoverParams) -> lsp.Hover | None:
 
 @server.feature(
     lsp.TEXT_DOCUMENT_COMPLETION,
-    lsp.CompletionOptions(trigger_characters=["=", "(", " "]),
+    lsp.CompletionOptions(trigger_characters=["=", "("]),
 )
 def completion(ls: LanguageServer, params: lsp.CompletionParams) -> lsp.CompletionList | None:
     return completion_impl(ls, params)
