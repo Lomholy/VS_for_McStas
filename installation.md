@@ -21,9 +21,9 @@ of the VS Code extension only, which also runs in VSCodium.
 ## The language server
 
 Every editor except VS Code and VSCodium needs the server installed once. It needs
-Python 3.9 or newer. Install it with [pipx](https://pipx.pypa.io), which gives
-the server its own virtual environment and puts `mcstas-language-server` in
-`~/.local/bin`:
+Python 3.9 or newer. Install it with [pipx](https://pipx.pypa.io) ([installing
+pipx](#installing-pipx)), which gives the server its own virtual environment and
+puts `mcstas-language-server` in `~/.local/bin`:
 
 ```bash
 pipx install "git+https://github.com/Lomholy/VS_for_McStas#subdirectory=server/python"
@@ -45,6 +45,39 @@ What every editor needs to know about the server:
 If your editor is started from a GUI that does not see `~/.local/bin` on PATH,
 use the full path, e.g. `/Users/you/.local/bin/mcstas-language-server` or
 `/home/you/.local/bin/mcstas-language-server`.
+
+### Installing pipx
+
+If `pipx` gives `command not found`, install it once:
+
+```bash
+brew install pipx                          # macOS (Homebrew)
+sudo apt install pipx                      # Debian/Ubuntu
+conda install -n base -c conda-forge pipx  # conda (or mamba/micromamba)
+python3 -m pip install --user pipx         # anywhere else with Python 3.9+
+```
+
+Then run `pipx ensurepath`, which adds `~/.local/bin` to your PATH, and open a
+new terminal so the change takes effect. pipx installed with conda is only
+found while that conda environment is active, but the language server it
+installs into `~/.local/bin` works without it.
+
+### Using a conda environment instead of pipx
+
+The server can also live in a conda environment, either a new one or your
+McStas environment:
+
+```bash
+conda create -n mcstas-ls -c conda-forge "python>=3.9" pip
+conda run -n mcstas-ls pip install "git+https://github.com/Lomholy/VS_for_McStas#subdirectory=server/python"
+```
+
+`mamba` and `micromamba` take the same commands. The server is then
+`<env>/bin/mcstas-language-server` (`<env>\Scripts\mcstas-language-server.exe`
+on Windows); `conda env list` shows `<env>`, e.g.
+`~/miniforge3/envs/mcstas-ls`. Since the environment is usually not active
+when your editor starts, give the editor that full path as the command.
+Update it with the same `pip install` command plus `--force-reinstall`.
 
 ## VS Code
 
@@ -75,7 +108,7 @@ page when a new version comes out.
 
 ## Neovim
 
-Needs Neovim 0.11 or newer and [pipx](https://pipx.pypa.io).
+Needs Neovim 0.11 or newer and [pipx](#installing-pipx), or a [conda environment](#using-a-conda-environment-instead-of-pipx).
 
 This repository is also a Neovim plugin that detects `.instr` and `.comp` files
 as filetype `mccode` and highlights them with the McStas Vim syntax file
@@ -91,6 +124,18 @@ package. The `build` line lets lazy.nvim install it with pipx from the plugin's
 `server/python` folder, and reinstall it whenever the plugin updates, so the
 server never gets out of date. Without it, install the server yourself as
 described in [the language server](#the-language-server).
+
+With a [conda environment](#using-a-conda-environment-instead-of-pipx) instead
+of pipx, let the build install into that environment, and point `cmd` (below)
+at it:
+
+```lua
+{ "Lomholy/VS_for_McStas", build = "conda run -n mcstas-ls pip install --force-reinstall ./server/python" },
+```
+
+```lua
+cmd = { vim.fn.expand('~/miniforge3/envs/mcstas-ls/bin/mcstas-language-server') },
+```
 
 Without a plugin manager, clone the plugin and install the server:
 
@@ -126,6 +171,13 @@ that case:
   Neovim from a new terminal. If Neovim is started from a GUI that does not
   see `~/.local/bin`, use the full path:
   `cmd = { vim.fn.expand('~/.local/bin/mcstas-language-server') }`.
+
+### "command not found: pipx" during the lazy.nvim build
+
+The `build` line needs pipx. [Install pipx](#installing-pipx), run
+`pipx ensurepath`, start Neovim from a new terminal and run
+`:Lazy build VS_for_McStas`. Or switch to the conda `build` line above, which
+needs no pipx.
 
 ## Emacs
 
