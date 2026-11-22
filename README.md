@@ -20,62 +20,54 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 The language server (hover and autocompletion) is a standalone Python package
 in `server/python`, so it also works in Neovim without the VS Code extension.
-It needs Python 3.9 or newer and Neovim 0.10 or newer.
+It needs Python 3.9 or newer and Neovim 0.11 or newer.
 
-Install it from a clone of this repository:
-
-```bash
-git clone https://github.com/Lomholy/VS_for_McStas.git
-cd VS_for_McStas
-python3 -m pip install --user --upgrade pip
-python3 -m pip install --user -e server/python
-```
-
-The editable install (`-e`) needs pip 21.3 or newer, which is why pip is
-upgraded first. It makes the server follow the clone, so a `git pull` is
-enough to update it.
-
-Check that the interpreter can find the server:
+Install it with [pipx](https://pipx.pypa.io), which gives the server its own
+virtual environment and puts `mcstas-language-server` in `~/.local/bin`:
 
 ```bash
-python3 -c "import mcstas_ls; print(mcstas_ls.__file__)"
+pipx install "git+https://github.com/Lomholy/VS_for_McStas#subdirectory=server/python"
+pipx ensurepath
 ```
 
-Then add this to your `init.lua`:
+Update it later with `pipx upgrade mcstas-language-server`. Because the server
+lives in its own environment, it does not matter which Python or conda
+environment is active when Neovim starts.
+
+This repository is also a Neovim plugin that detects `.instr` and `.comp` files
+as filetype `mccode` and highlights them with the McStas Vim syntax file
+(`syntax/mccode.vim`, from McCode's `support/common/editors/mccode.vim`).
+Install it with [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
-vim.filetype.add({
-  extension = {
-    instr = 'mccode',
-    comp = 'mccode',
-  },
-})
-
-vim.api.nvim_create_autocmd('FileType', {
-  pattern = 'mccode',
-  callback = function(args)
-    vim.lsp.start({
-      name = 'mcstas_language_server',
-      cmd = { 'python3', '-m', 'mcstas_ls.server' },
-      root_dir = vim.fs.dirname(vim.api.nvim_buf_get_name(args.buf)),
-    })
-  end,
-})
+{ "Lomholy/VS_for_McStas" },
 ```
 
-`cmd` must use the same interpreter the package was installed with. If
-`python3` points somewhere else inside Neovim (for example with an activated
-conda environment), replace it with the absolute path printed by
-`python3 -c "import sys; print(sys.executable)"` in the shell you installed
-from.
+or without a plugin manager:
+
+```bash
+git clone https://github.com/Lomholy/VS_for_McStas.git ~/.local/share/nvim/site/pack/mcstas/start/VS_for_McStas
+```
+
+Then add this to your `init.lua` to start the language server:
+
+```lua
+vim.lsp.config('mcstas', {
+  cmd = { 'mcstas-language-server' },
+  filetypes = { 'mccode' },
+  root_markers = { '.git' },
+})
+vim.lsp.enable('mcstas')
+```
+
+If Neovim is started from a GUI that does not see `~/.local/bin` on PATH, use
+the absolute path instead:
+`cmd = { vim.fn.expand('~/.local/bin/mcstas-language-server') }`.
 
 Open a `.instr` or `.comp` file and run `:checkhealth vim.lsp` to confirm that
-`mcstas_language_server` is attached. `K` shows the documentation of the
+`mcstas` is attached. `K` shows the documentation of the
 component under the cursor and `<C-x><C-o>` completes component names and
 parameters.
-
-Syntax highlighting is not part of the language server, so Neovim only
-highlights these files if you have a `mccode` syntax file installed.
 
 
 ## Known Issues
