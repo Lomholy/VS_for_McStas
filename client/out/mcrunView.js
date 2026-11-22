@@ -1,12 +1,28 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.escapeHtml = escapeHtml;
+exports.cspMeta = cspMeta;
+exports.newNonce = newNonce;
 exports.getWebviewHtml = getWebviewHtml;
+const crypto_1 = require("crypto");
+function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Content-Security-Policy meta tag: inline styles, and only scripts carrying the nonce
+function cspMeta(nonce) {
+    const script = nonce ? ` script-src 'nonce-${nonce}';` : '';
+    return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';${script}">`;
+}
+function newNonce() {
+    return (0, crypto_1.randomBytes)(16).toString('base64');
+}
 function getWebviewHtml(instrName, params) {
+    const nonce = newNonce();
     const inputs = params
         .map(p => `
 		  <div class="param-row">
-			<label for="${p.name}">${p.name}</label>
-			<input id="${p.name}" name="${p.name}" value="${p.defaultValue}" />
+			<label for="${escapeHtml(p.name)}">${escapeHtml(p.name)}</label>
+			<input id="${escapeHtml(p.name)}" name="${escapeHtml(p.name)}" value="${escapeHtml(p.defaultValue)}" />
 		  </div>
 		`)
         .join('<br>');
@@ -15,6 +31,7 @@ function getWebviewHtml(instrName, params) {
 	  <html lang="en">
 	  <head>
 		<meta charset="UTF-8" />
+		${cspMeta(nonce)}
 		<style>
 		  body { 
 			font-family: sans-serif; 
@@ -46,13 +63,13 @@ function getWebviewHtml(instrName, params) {
 		</style>
 	  </head>
 	  <body>
-		<h2>Run McStas Simulation: ${instrName}</h2>
+		<h2>Run McStas Simulation: ${escapeHtml(instrName)}</h2>
 		<form id="paramForm">
 		  ${inputs}
 		  <button type="submit">Run Simulation</button>
 		</form>
   
-		<script>
+		<script nonce="${nonce}">
 		  const vscode = acquireVsCodeApi();
 		  document.getElementById('paramForm').addEventListener('submit', (e) => {
 			e.preventDefault();

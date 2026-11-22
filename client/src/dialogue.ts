@@ -1,12 +1,17 @@
 import * as vscode from 'vscode';
 import * as data from '../../server/python/src/mcstas_ls/data/mcstas-comps.json'
+import { cspMeta, escapeHtml, newNonce } from './mcrunView';
 
 export async function openCompDialog(filePath: string) {
     const comp_json = getcomp(filePath);
+    if (!comp_json) {
+        return;
+    }
     const header = comp_json.name
+    // A null default means the parameter is required; its field starts empty
     const parameters = Object.entries(comp_json.parameter_defaults).map(([name, value]) => ({
     name,
-    value: String(value)
+    value: value === null ? '' : String(value)
     }));
     const units = Object.fromEntries(
     Object.entries(comp_json.parameter_units).map(([name, value]) => [name, String(value)])
@@ -60,9 +65,10 @@ export async function openCompDialog(filePath: string) {
 
             panel.webview.html = `
             <html>
+                <head>${cspMeta()}</head>
                 <body>
                 <h2>Generated Component Declaration</h2>
-                <pre>${formattedComponent}</pre>
+                <pre>${escapeHtml(formattedComponent)}</pre>
                 </body>
             </html>
             `;
@@ -117,9 +123,10 @@ ${paramLine}
 
             panel.webview.html = `
                 <html>
+                <head>${cspMeta()}</head>
                 <body>
                     <h2>McStasScript Output</h2>
-                    <pre style="background: #111; color: #FFFFFF; padding: 1em; font-family: monospace;">${scriptOutput}</pre>
+                    <pre style="background: #111; color: #FFFFFF; padding: 1em; font-family: monospace;">${escapeHtml(scriptOutput)}</pre>
                 </body>
                 </html>
             `;
@@ -131,8 +138,10 @@ ${paramLine}
 function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
                          units: { [key: string]: string }, comments: { [key: string]: string }): string {
     const oldParameters = JSON.parse(JSON.stringify(parameters));
+    const nonce = newNonce();
     return `
         <html>
+            <head>${cspMeta(nonce)}</head>
             <body>
                  <style>
                    .form-row {
@@ -150,24 +159,20 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
                         box-sizing: border-box;
                     }
                     .unit {
-                        color: white;
+                        color: var(--vscode-foreground);
                         font-size: 1em; /* You can increase to 1.1em, 1.2em, etc. */
                         text-align: right;
                     }
 
                     .comment {
-                        color: white;
+                        color: var(--vscode-foreground);
                         font-size: 1em;
                     }
                     .custom-box {
                         border: 2px solid #2196F3;
                         border-radius: 4px;
                         padding: 5px;
-                        color: white;
-                        text-shadow: -1px -1px 0 black,
-                                    1px -1px 0 black,
-                                    -1px 1px 0 black,
-                                    1px 1px 0 black;
+                        color: var(--vscode-input-foreground);
                         background-color: transparent;
                     }
                     .param-separator {
@@ -179,7 +184,7 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
                         display: inline-block;
                     }
                     </style>
-                <h2>${header}</h2>
+                <h2>${escapeHtml(header)}</h2>
                 <h3>Component Instance</h3>
                 <form id="compForm">
                     <div>
@@ -189,10 +194,10 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
                     <h3>Parameters</h3>
                     ${parameters.map(param => `
                     <div class="form-row">
-                        <label class="form-label" for="${param.name}">${param.name}</label>
-                        <input type="text" class="custom-box form-input" id="${param.name}" name="${param.name}" value="${param.value || ''}">
-                        <div class="unit">[${units[param.name] || ''}]</div>
-                        <div class="comment">${comments[param.name] || ''}</div>
+                        <label class="form-label" for="${escapeHtml(param.name)}">${escapeHtml(param.name)}</label>
+                        <input type="text" class="custom-box form-input" id="${escapeHtml(param.name)}" name="${escapeHtml(param.name)}" value="${escapeHtml(param.value)}"${param.value === '' ? ' placeholder="required"' : ''}>
+                        <div class="unit">[${escapeHtml(units[param.name] || '')}]</div>
+                        <div class="comment">${escapeHtml(comments[param.name] || '')}</div>
                     </div>
                     <hr class="param-separator">
                     `).join('')}
@@ -233,9 +238,9 @@ function getWebviewContent(header: string, parameters: ComponentParameterInfo[],
                     <button type="submit" name="action" value="writeMcstasScript">Write out to mcstasscript</button>
                 </form>
 
-                <script>
+                <script nonce="${nonce}">
                     const vscode = acquireVsCodeApi();
-                    const oldParameters = ${JSON.stringify(oldParameters)};
+                    const oldParameters = ${JSON.stringify(oldParameters).replace(/</g, '\\u003c')};
 
                     document.getElementById('compForm').onsubmit = (e) => {
                         e.preventDefault();
@@ -279,8 +284,9 @@ interface ComponentParameterInfo {
 function getcomp(component: string) {
     const comp_name = component.split("/").pop().split('.')[0];
     const comp = data[comp_name]
-    if (comp == undefined){
+    if (typeof comp !== 'object' || comp === null) {
         vscode.window.showErrorMessage(`Error: ${comp_name} was not parsed correctly by McStas, so it cannot be shown as a component`)
+        return undefined;
     }
-    return comp;  
+    return comp;
 }
