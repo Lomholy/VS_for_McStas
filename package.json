@@ -84,14 +84,6 @@
           "light": "./media/mcstas.svg",
           "dark": "./media/mcstas.svg"
         }
-      },
-      {
-        "command": "mcstas.openClangFormatHelp",
-        "title": "McStas: How to Install clang-format"
-      },
-      {
-        "command": "mcstas.openPythonServerHelp",
-        "title": "McStas: How to Install the Language Server"
       }
     ],
     "menus": {

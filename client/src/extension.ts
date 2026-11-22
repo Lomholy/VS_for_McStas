@@ -57,24 +57,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		mcplotCommand();
 	});
 
-	vscode.commands.registerCommand('mcstas.openClangFormatHelp', () => {
-		vscode.window.showInformationMessage(
-			"To install clang-format:\n" +
-			"▶ macOS: brew install clang-format\n" +
-			"▶ Ubuntu/Debian: sudo apt install clang-format\n" +
-			"▶ Windows: Install LLVM from https://llvm.org\n" +
-			"After installation, restart VS Code."
-		);
-	});
-
-	vscode.commands.registerCommand('mcstas.openPythonServerHelp', () => {
-		vscode.window.showInformationMessage(
-			"The extension installs its Python language server into its own virtual environment, using python3 (3.9 or newer) from PATH. If that failed:\n" +
-			"▶ Install Python 3.9 or newer and make sure python3 is on PATH when VS Code starts.\n" +
-			"▶ Or install the server yourself: pipx install \"git+https://github.com/Lomholy/VS_for_McStas#subdirectory=server/python\"\n" +
-			"After installation, restart VS Code."
-		);
-	});
+	const installationGuide = vscode.Uri.parse('https://github.com/Lomholy/VS_for_McStas/blob/main/installation.md#vs-code');
+	const showWarningWithGuide = (message: string) => {
+		vscode.window.showWarningMessage(message, 'Installation Guide').then(btn => {
+			if (btn === 'Installation Guide') {
+				vscode.env.openExternal(installationGuide);
+			}
+		});
+	};
 
 
 	console.log(context.subscriptions);
@@ -93,14 +83,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	if (!pythonServer) {
-		vscode.window.showWarningMessage(
-			'McStas Language Server: Could not install the Python language server. Hover and completion will not work until python3 (3.9 or newer) is on PATH, or mcstas-language-server is installed.',
-			'Installation Help'
-		).then(btn => {
-			if (btn === 'Installation Help') {
-				vscode.commands.executeCommand('mcstas.openPythonServerHelp');
-			}
-		});
+		showWarningWithGuide(
+			'McStas Language Server: Could not install the Python language server. Hover and completion will not work until python3 (3.9 or newer) is on PATH, or mcstas-language-server is installed.'
+		);
 	}
 
 	const serverOptions: ServerOptions = {
@@ -147,14 +132,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			const found = await clangFormat;
 			if (!found) {
 				clangFormat = undefined;
-				vscode.window.showWarningMessage(
-					'McStas Formatter: Could not find "clang-format". If you are using conda/mamba, ensure the environment is active or set mcstas.formatter.clangFormatPath.',
-					'Installation Help'
-				).then(btn => {
-					if (btn === 'Installation Help') {
-						vscode.commands.executeCommand('mcstas.openClangFormatHelp');
-					}
-				});
+				showWarningWithGuide(
+					'McStas Formatter: Could not find "clang-format". It is installed together with the language server, so check that the language server is installed, or set mcstas.formatter.clangFormatPath.'
+				);
 				return [];
 			}
 			setFormatterConfig({ clangFormatPath: found, styleFilePath });
