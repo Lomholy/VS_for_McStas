@@ -1,18 +1,34 @@
 
 # VS-for-McStas README
 
-VS-for-McStas is a VS Code extension that serves as both a syntax highlighter,
-component snippet writer, language server and auto formatter for .instr and .comp files.
+VS-for-McStas is a VS Code extension for McStas `.instr` and `.comp` files. It
+provides syntax highlighting, a language server (hover and completion), a
+component browser and an auto formatter.
 
-The syntax highlighting and language server are on by default when the extension is installed.
- 
-The component snippet writer can be accessed by pressing the little neutron to the left, whereafter all the components available are listed within a folder like structure of the components.
-
-The auto formatter is not enabled on save, but instruments and components can be auto formatted by pressing Shift + Alt + F or Shift + Option + F on Windows/Linux and MacOS respectively.
-
-The component snippet writer is only available if you have an installation of
-mcstas available through conda. If you do have mcstas available through conda
-and it does not show up, please submit an issue on the [Githup Repository](https://github.com/Lomholy/VS_for_McStas).
+- **Syntax highlighting** is on as soon as the extension is installed.
+- **Language server:** hover over a component type to see its parameters, and
+  get completion for components, their parameters, DECLARE variables and
+  instrument parameters. The server is written in Python and needs `python3`
+  (3.9 or newer) on PATH. On first use the extension installs it into its own
+  virtual environment, so your Python and conda environments are left alone.
+  If `mcstas-language-server` is already on PATH (for example from pipx), that
+  one is used instead.
+- **Component browser:** press the neutron icon in the activity bar to see all
+  McStas components by category. Clicking a component opens a form for its
+  parameters, which generates the `COMPONENT` declaration or McStasScript code
+  for you to copy into your instrument. The component data ships with the
+  extension (currently from McCode v3.10.3), so no McStas installation is
+  needed. Only "Open Component File", which opens the component's `.comp`
+  source, needs McStas installed through conda.
+- **Formatter:** format a file with Shift+Alt+F (Windows), Shift+Option+F
+  (macOS) or Ctrl+Shift+I (Linux). It formats the C code in `%{ %}` blocks the
+  same way as McCode's `mccode-clangformat`, with McCode's `.clang-format`
+  style, and lays out component parameters. clang-format is installed together
+  with the language server; set `mcstas.formatter.clangFormatPath` to use a
+  different one. Formatting is not run on save.
+- **Run, display and plot:** the buttons in the component browser's title bar
+  run `mcrun`, `mcdisplay` and `mcplot` in a terminal, so McStas must be
+  available in that terminal.
 
 In general, if you have any problems, desires for improvements etc. add an issue or your own fix on [the Github Repository](https://github.com/Lomholy/VS_for_McStas)!
 
@@ -75,6 +91,32 @@ parameters.
 ## Known Issues
 
 ## Release Notes
+
+## 2.6.0
+Minor
+- The language server is rewritten in Python (pygls). The extension installs
+  it into its own virtual environment on first use, which needs `python3` 3.9
+  or newer on PATH. It also works in Neovim, see above.
+- Component data comes from McCode v3.10.3: 415 components, including the
+  `sasmodels` and new `contrib` components. It is regenerated from each McCode
+  release by a script, without a McStas installation.
+- Hover works on `SPLIT`, `REMOVABLE` and `CPU` component lines, and shows a
+  message for components without data.
+- Completion is quieter: no list on every space or after `(` outside a
+  component, case-insensitive matching, and component snippets no longer
+  insert a second `COMPONENT` after a typed `COMPONENT` or `COMPONENT name =`.
+- The formatter matches McCode's `mccode-clangformat`: macro continuation lines
+  no longer drift right on every format, `%{ %}` blocks in `.instr` files are
+  formatted too, and the `.clang-format` style is kept in sync with McCode.
+  clang-format now comes with the language server, so it no longer has to be
+  installed separately, and it is only looked up when you format.
+- `mcrun` and `mcdisplay` save the file first and run in its folder, so
+  instruments in subfolders and paths with spaces work.
+- The component form marks required parameters, and webviews escape their
+  content and use a Content-Security-Policy.
+- Removed commands and settings that did nothing, and the extension only
+  activates for McStas files and its own views and commands.
+- Added an extension icon and integration tests that run in CI.
 
 ## 2.5.0
 Minor
