@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mcplotCommand = mcplotCommand;
 const vscode = require("vscode");
+const condaEnv_1 = require("./condaEnv");
 async function mcplotCommand() {
     // Prompt user to pick a folder
     const folderUris = await vscode.window.showOpenDialog({
@@ -19,6 +20,6 @@ async function mcplotCommand() {
     // Launch mcplot with the selected folder
     const terminal = vscode.window.createTerminal('McStas Plot');
     terminal.show();
-    terminal.sendText(`mcplot "${folderPath}"`);
+    terminal.sendText((0, condaEnv_1.inCondaEnv)(`mcplot "${folderPath}"`));
 }
 //# sourceMappingURL=mcplotCommand.js.map

@@ -19,7 +19,9 @@ component browser and an auto formatter.
   for you to copy into your instrument. The component data ships with the
   extension (currently from McCode v3.10.3), so no McStas installation is
   needed. Only "Open Component File", which opens the component's `.comp`
-  source, needs McStas installed through conda.
+  source, needs McStas installed through conda. It searches the active
+  environment and the usual conda install folders; to use a specific
+  environment, pick it with the gear button in the Components view.
 - **Formatter:** format a file with Shift+Alt+F (Windows), Shift+Option+F
   (macOS) or Ctrl+Shift+I (Linux). It formats the C code in `%{ %}` blocks the
   same way as McCode's `mccode-clangformat`, with McCode's `.clang-format`
@@ -27,8 +29,9 @@ component browser and an auto formatter.
   with the language server; set `mcstas.formatter.clangFormatPath` to use a
   different one. Formatting is not run on save.
 - **Run, display and plot:** the buttons in the component browser's title bar
-  run `mcrun`, `mcdisplay` and `mcplot` in a terminal, so McStas must be
-  available in that terminal.
+  run `mcrun`, `mcdisplay` and `mcplot` in a terminal. If a conda environment
+  is chosen with the gear button, they run in it (with `conda`, `mamba` or
+  `micromamba run`); otherwise McStas must be available in that terminal.
 
 In general, if you have any problems, desires for improvements etc. add an issue or your own fix on [the Github Repository](https://github.com/Lomholy/VS_for_McStas)!
 

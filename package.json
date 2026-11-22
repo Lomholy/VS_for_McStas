@@ -23,6 +23,12 @@
           "type": "string",
           "default": "clang-format",
           "markdownDescription": "Path to the `clang-format` executable. If not set, it must be in PATH."
+        },
+        "mcstas.condaEnvironment": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Conda environment with McStas, e.g. `/home/you/miniforge3/envs/mcstas`. **Open Component File** reads the `.comp` sources from it, and the run, display and plot buttons run `mcrun`, `mcdisplay` and `mcplot` in it (with `conda`, `mamba` or `micromamba run`). Leave empty to search the active environment and the `envs` folders of the usual conda installs for `.comp` files, and to run the commands as they are in the terminal. Set it with the gear button in the Components view."
         }
       }
     },
@@ -84,6 +90,12 @@
           "light": "./media/mcstas.svg",
           "dark": "./media/mcstas.svg"
         }
+      },
+      {
+        "command": "mcstas.chooseCondaEnvironment",
+        "title": "Choose McStas Conda Environment",
+        "category": "McStas",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -113,6 +125,11 @@
           "command": "mcstas.mcplot",
           "when": "view == Component_viewer",
           "group": "dot_group"
+        },
+        {
+          "command": "mcstas.chooseCondaEnvironment",
+          "when": "view == Component_viewer",
+          "group": "navigation"
         }
       ]
     },
