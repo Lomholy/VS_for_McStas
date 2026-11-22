@@ -15,6 +15,10 @@
 			"outFiles": [
 				"${workspaceFolder}/client/out/**/*.js"
 			],
+			// The language server imports mcstas_ls from this checkout, not from an installed copy
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}/server/python/src"
+			},
 			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]
