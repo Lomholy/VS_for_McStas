@@ -16,6 +16,13 @@ def test_find_hovered_component_ignores_non_component_lines():
     assert find_hovered_component(doc, 0, 5) is None
 
 
+def test_find_hovered_component_allows_keyword_prefixes():
+    for prefix in ("SPLIT ", "SPLIT 10 ", "SPLIT 2*n ", "REMOVABLE ", "CPU ", "REMOVABLE CPU SPLIT 5 "):
+        doc = prefix + "COMPONENT a = Arm()\n"
+        col = doc.index("Arm")
+        assert find_hovered_component(doc, 0, col) == "Arm", prefix
+
+
 def test_find_hovered_component_returns_none_for_out_of_range_line():
     doc = "COMPONENT src = Arm()\n"
     assert find_hovered_component(doc, 5, 0) is None
