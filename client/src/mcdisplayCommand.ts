@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { getWebviewHtml } from './mcrunView';
 
 export function mcdisplayCommand(){
@@ -46,9 +47,13 @@ export function mcdisplayCommand(){
         .map(([k, v]) => `${k}=${/^\d+(\.\d+)?$/.test(v) ? v : `"${v}"`}`)
         .join(' ');
 
-        const terminal = vscode.window.createTerminal('McStas Display');
+        // mcdisplay reads the file from disk and writes its output next to it
+        if (file.isDirty && !(await file.save())) {
+            return;
+        }
+        const terminal = vscode.window.createTerminal({ name: 'McStas Display', cwd: path.dirname(file.uri.fsPath) });
         terminal.show();
-        terminal.sendText(`mcdisplay ${file.fileName} ${args}`);
+        terminal.sendText(`mcdisplay "${path.basename(file.uri.fsPath)}" ${args}`);
     }
     });
 }

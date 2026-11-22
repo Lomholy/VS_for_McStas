@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mcdisplayCommand = mcdisplayCommand;
 const vscode = require("vscode");
+const path = require("path");
 const mcrunView_1 = require("./mcrunView");
 function mcdisplayCommand() {
     const editor = vscode.window.activeTextEditor;
@@ -35,9 +36,13 @@ function mcdisplayCommand() {
             const args = Object.entries(values)
                 .map(([k, v]) => `${k}=${/^\d+(\.\d+)?$/.test(v) ? v : `"${v}"`}`)
                 .join(' ');
-            const terminal = vscode.window.createTerminal('McStas Display');
+            // mcdisplay reads the file from disk and writes its output next to it
+            if (file.isDirty && !(await file.save())) {
+                return;
+            }
+            const terminal = vscode.window.createTerminal({ name: 'McStas Display', cwd: path.dirname(file.uri.fsPath) });
             terminal.show();
-            terminal.sendText(`mcdisplay ${file.fileName} ${args}`);
+            terminal.sendText(`mcdisplay "${path.basename(file.uri.fsPath)}" ${args}`);
         }
     });
 }
