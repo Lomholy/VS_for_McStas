@@ -54,7 +54,8 @@ def test_build_component_hover_markdown_handles_component_with_no_parameters():
     assert "**Parameters**" in text
 
 
-def test_hover_shows_unavailable_message_for_component_without_data():
+def test_hover_shows_unavailable_message_for_component_without_data(monkeypatch):
+    monkeypatch.setattr("mcstas_ls.hover.get_components", lambda: {"Rotator": "Component information is unavailable"})
     doc = SimpleNamespace(source="COMPONENT r = Rotator()\n")
     ls = SimpleNamespace(workspace=SimpleNamespace(get_text_document=lambda uri: doc))
     params = lsp.HoverParams(
