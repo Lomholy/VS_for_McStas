@@ -1,0 +1,36 @@
+name: Update component data
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install mcstasscript
+      # Latest McCode release tag, e.g. v3.10.3
+      - id: tag
+        run: |
+          tag=$(git ls-remote --tags --refs --sort=-v:refname https://github.com/mccode-dev/McCode.git 'v[0-9]*' | head -1 | sed 's#.*refs/tags/##')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - run: |
+          git clone --depth 1 --branch ${{ steps.tag.outputs.tag }} --filter=blob:none --sparse https://github.com/mccode-dev/McCode.git "$RUNNER_TEMP/McCode"
+          git -C "$RUNNER_TEMP/McCode" sparse-checkout set mcstas-comps
+          python server/python/scripts/generate_comps.py "$RUNNER_TEMP/McCode/mcstas-comps"
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: update-comps
+          title: Update component data to McCode ${{ steps.tag.outputs.tag }}
+          commit-message: Update component data to McCode ${{ steps.tag.outputs.tag }}
+          body: Regenerated `mcstas-comps.json` from the `mcstas-comps` folder of McCode ${{ steps.tag.outputs.tag }} with `server/python/scripts/generate_comps.py`.
+          add-paths: server/python/src/mcstas_ls/data/mcstas-comps.json

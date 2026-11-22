@@ -38,12 +38,30 @@ dropping non-dict entries, so that hover and completion both skip them.
 
 ### 2. Component data pipeline
 
-- `comp_maker.ipynb` writes `mcstas-comps.json` to the repository root. It
-  then has to be copied by hand to `server/python/src/mcstas_ls/data/`.
-  Make the generator write there directly, and skip components it cannot
-  read instead of storing a string (see 1).
-- `media/comp_parser.py` and `client/src/comp_dict.json` are not referenced
-  anywhere. Delete them.
+Done:
+
+- `scripts/generate_comps.py <McCode>/mcstas-comps` replaces
+  `comp_maker.ipynb` and writes `src/mcstas_ls/data/mcstas-comps.json`
+  directly. It needs only mcstasscript and the `.comp` files, not a McStas
+  install. Unreadable components are still stored as the string
+  `"Component information is unavailable"`.
+- `.github/workflows/update-comps.yml` runs it weekly (and on demand)
+  against the latest McCode release tag (`v*`) and opens a PR when the data
+  changes. The bundled JSON stays the only runtime source, so users need no
+  McStas install and no network.
+- The bundled data is regenerated from McCode v3.10.3 (415 components, none
+  unreadable).
+- `media/comp_parser.py` and `client/src/comp_dict.json` are deleted.
+
+Left:
+
+- The workflow needs "Allow GitHub Actions to create and approve pull
+  requests" enabled in the repository settings.
+- The data tracks the latest McCode release only. Possible follow-up: prefer
+  a local McStas component library (`$MCSTAS/`) when one exists, so users on
+  older McStas versions see their own components.
+- `client/src/dialogue.js` (and `.js.map`) is stale compiled output checked
+  into git; the extension loads `client/out/`. It can be deleted.
 
 ### 3. Completion behaviour
 
