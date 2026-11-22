@@ -49,6 +49,7 @@ _VOID_ONLY_RE = re.compile(r"^\s*\bvoid\b\s*$")
 _COMPONENT_HEAD_RE = re.compile(r"COMPONENT\s+[A-Za-z_]\w*\s*=\s*([A-Za-z_]\w*)\s*$")
 _TRAILING_WORD_RE = re.compile(r"(\w*)$")
 _TYPED_COMPONENT_HEAD_RE = re.compile(r"\bCOMPONENT\s+\w+\s*=\s*\w*$")
+_TYPED_COMPONENT_KEYWORD_RE = re.compile(r"\bCOMPONENT\s+\w*$")
 
 
 def get_input_parameters(content: str) -> list[str]:
@@ -129,12 +130,21 @@ def _extract_prefix(line_until_cursor: str) -> str:
     return match.group(1) if match else line_until_cursor
 
 
-def _component_snippet_item(key: str, spec: dict[str, Any], head_typed: bool = False) -> dict[str, Any]:
+def _snippet_head(line_until_cursor: str) -> str:
+    """Return the part of `COMPONENT $0 = ` that the line does not already have."""
+    if _TYPED_COMPONENT_HEAD_RE.search(line_until_cursor):
+        return ""
+    if _TYPED_COMPONENT_KEYWORD_RE.search(line_until_cursor):
+        return "$0 = "
+    return "COMPONENT $0 = "
+
+
+def _component_snippet_item(key: str, spec: dict[str, Any], head: str = "COMPONENT $0 = ") -> dict[str, Any]:
     try:
         category = spec["category"]
         highlight = f"{key} From Category: {category}"
         param_missing_default = False
-        insert_lines = [f"{key}(\n" if head_typed else f"COMPONENT $0 = {key}(\n"]
+        insert_lines = [f"{head}{key}(\n"]
 
         doc_lines = []
         for name in spec["parameter_names"]:
@@ -246,10 +256,10 @@ def build_completion_items(content: str, line: int, character: int) -> list[dict
     aggregated.extend(_BASE_SUGGESTIONS)
 
     if not in_component_block:
-        head_typed = bool(_TYPED_COMPONENT_HEAD_RE.search(line_until_cursor))
+        head = _snippet_head(line_until_cursor)
         for key, spec in components.items():
             if spec is not None:
-                aggregated.append(_component_snippet_item(key, spec, head_typed))
+                aggregated.append(_component_snippet_item(key, spec, head))
 
     for v in declared_variables:
         aggregated.append({"label": v, "detail": "Parameter from DECLARE section", "kind": lsp.CompletionItemKind.Variable})

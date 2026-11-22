@@ -86,6 +86,13 @@ def test_snippet_after_typed_component_head_inserts_only_the_type():
     assert "COMPONENT" not in item["insertText"]
 
 
+def test_snippet_after_component_keyword_inserts_name_placeholder_and_type():
+    doc = "SPLIT 10 COMPONENT Sour\n"
+    items = build_completion_items(doc, 0, len("SPLIT 10 COMPONENT Sour"))
+    item = next(it for it in items if it["label"] == "Source_simple")
+    assert item["insertText"].startswith("$0 = Source_simple(\n")
+
+
 def test_snippet_on_empty_line_inserts_full_component_block():
     items = build_completion_items("Sou\n", 0, 3)
     item = next(it for it in items if it["label"] == "Source_simple")
