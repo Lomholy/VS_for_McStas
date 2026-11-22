@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { resolveCompPathFromConda } from '../componentProvider';
+import { findCondaRunner, inCondaEnv } from '../condaEnv';
 
 const EXTENSION_ID = 'lomholy.vs-for-mcstas';
 
@@ -86,6 +87,29 @@ suite('Extension', () => {
 		try {
 			assert.strictEqual(resolveCompPathFromConda('sources', 'Source_simple'), comp);
 			assert.strictEqual(resolveCompPathFromConda('sources', 'Not_a_component'), undefined);
+		} finally {
+			await config.update('condaEnvironment', undefined, vscode.ConfigurationTarget.Global);
+		}
+	});
+
+	test('runs McStas commands in the chosen conda environment', async () => {
+		const command = 'mcrun "test.instr" L=1';
+		assert.strictEqual(inCondaEnv(command), command);
+
+		// A fake conda install: <root>/condabin/conda and the environment <root>/envs/mcstas
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-conda-'));
+		const env = path.join(root, 'envs', 'mcstas');
+		fs.mkdirSync(env, { recursive: true });
+		fs.mkdirSync(path.join(root, 'condabin'));
+		fs.writeFileSync(path.join(root, 'condabin', process.platform === 'win32' ? 'conda.bat' : 'conda'), '');
+		const config = vscode.workspace.getConfiguration('mcstas');
+		await config.update('condaEnvironment', env, vscode.ConfigurationTarget.Global);
+		try {
+			const wrapped = inCondaEnv(command);
+			const runner = findCondaRunner(env);
+			assert.ok(runner && fs.existsSync(runner), String(runner));
+			assert.ok(wrapped.includes(`"${runner}" run`), wrapped);
+			assert.ok(wrapped.endsWith(` -p "${env}" ${command}`), wrapped);
 		} finally {
 			await config.update('condaEnvironment', undefined, vscode.ConfigurationTarget.Global);
 		}

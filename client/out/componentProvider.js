@@ -7,6 +7,7 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const condaEnv_1 = require("./condaEnv");
 function getCategoryIcon(label) {
     const key = label.toLowerCase();
     const map = {
@@ -23,15 +24,11 @@ function getCategoryIcon(label) {
     const iconName = map[key] ?? 'folder';
     return new vscode.ThemeIcon(iconName);
 }
-// The environment chosen with "Choose McStas Conda Environment", or undefined for the automatic search
-function chosenCondaEnv() {
-    return vscode.workspace.getConfiguration('mcstas').get('condaEnvironment')?.trim() || undefined;
-}
 function hasMcStasResources(envPrefix) {
     return fs.existsSync(path.join(envPrefix, 'share', 'mcstas', 'resources'));
 }
 function resolveCompPathFromConda(category, compName) {
-    const chosen = chosenCondaEnv();
+    const chosen = (0, condaEnv_1.chosenCondaEnv)();
     for (const envPrefix of chosen ? [chosen] : getCandidateCondaEnvs()) {
         const p = path.join(envPrefix, 'share', 'mcstas', 'resources', category, `${compName}.comp`);
         if (fs.existsSync(p)) {
@@ -93,7 +90,7 @@ async function activateComponentViewer(context) {
 }
 // Lets the user pick the conda environment used to find .comp files; stored in the user settings
 async function chooseCondaEnvironment() {
-    const current = chosenCondaEnv();
+    const current = (0, condaEnv_1.chosenCondaEnv)();
     const items = [
         { label: '$(search) Automatic', description: 'Search the active and the usual conda environments', value: '' },
         ...getCandidateCondaEnvs().filter(hasMcStasResources).map(env => ({
@@ -107,7 +104,7 @@ async function chooseCondaEnvironment() {
         }
     }
     const picked = await vscode.window.showQuickPick(items, {
-        title: 'Conda environment with McStas (used by "Open Component File")',
+        title: 'Conda environment with McStas (for Open Component File, run, display and plot)',
     });
     if (!picked) {
         return;

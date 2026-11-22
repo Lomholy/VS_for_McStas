@@ -28,7 +28,7 @@
           "type": "string",
           "default": "",
           "scope": "machine",
-          "markdownDescription": "Conda environment with McStas that **Open Component File** reads the `.comp` sources from, e.g. `/home/you/miniforge3/envs/mcstas`. Leave empty to search the active environment and the `envs` folders of the usual conda installs. Set it with the gear button in the Components view."
+          "markdownDescription": "Conda environment with McStas, e.g. `/home/you/miniforge3/envs/mcstas`. **Open Component File** reads the `.comp` sources from it, and the run, display and plot buttons run `mcrun`, `mcdisplay` and `mcplot` in it (with `conda`, `mamba` or `micromamba run`). Leave empty to search the active environment and the `envs` folders of the usual conda installs for `.comp` files, and to run the commands as they are in the terminal. Set it with the gear button in the Components view."
         }
       }
     },

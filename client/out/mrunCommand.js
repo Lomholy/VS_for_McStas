@@ -4,6 +4,7 @@ exports.mcrunCommand = mcrunCommand;
 const vscode = require("vscode");
 const path = require("path");
 const mcrunView_1 = require("./mcrunView");
+const condaEnv_1 = require("./condaEnv");
 function mcrunCommand() {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -43,7 +44,7 @@ function mcrunCommand() {
             }
             const terminal = vscode.window.createTerminal({ name: 'McStas Simulation', cwd: path.dirname(document.uri.fsPath) });
             terminal.show();
-            terminal.sendText(`mcrun "${fileName}" ${args}`);
+            terminal.sendText((0, condaEnv_1.inCondaEnv)(`mcrun "${fileName}" ${args}`));
         }
     });
 }

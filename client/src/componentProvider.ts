@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { chosenCondaEnv } from './condaEnv';
 
 type ComponentData = {
   name: string;
@@ -28,11 +29,6 @@ function getCategoryIcon(label: string): vscode.ThemeIcon {
   return new vscode.ThemeIcon(iconName);
 }
 
-
-// The environment chosen with "Choose McStas Conda Environment", or undefined for the automatic search
-function chosenCondaEnv(): string | undefined {
-  return vscode.workspace.getConfiguration('mcstas').get<string>('condaEnvironment')?.trim() || undefined;
-}
 
 function hasMcStasResources(envPrefix: string): boolean {
   return fs.existsSync(path.join(envPrefix, 'share', 'mcstas', 'resources'));
@@ -128,7 +124,7 @@ async function chooseCondaEnvironment() {
   }
 
   const picked = await vscode.window.showQuickPick(items, {
-    title: 'Conda environment with McStas (used by "Open Component File")',
+    title: 'Conda environment with McStas (for Open Component File, run, display and plot)',
   });
   if (!picked) {
     return;

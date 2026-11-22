@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getWebviewHtml } from './mcrunView';
+import { inCondaEnv } from './condaEnv';
 export function mcrunCommand() {
     const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -54,7 +55,7 @@ export function mcrunCommand() {
         }
         const terminal = vscode.window.createTerminal({ name: 'McStas Simulation', cwd: path.dirname(document.uri.fsPath) });
         terminal.show();
-        terminal.sendText(`mcrun "${fileName}" ${args}`);
+        terminal.sendText(inCondaEnv(`mcrun "${fileName}" ${args}`));
         }
     });
 }
