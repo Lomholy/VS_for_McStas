@@ -6,6 +6,7 @@ Needs mcstasscript, which only parses the .comp files (no McStas install).
 """
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -21,11 +22,18 @@ def main(comps_dir: str) -> None:
     data = {}
     for name in sorted(reader.component_category):
         try:
-            data[name] = reader.read_name(name).__dict__
+            info = reader.read_name(name).__dict__
         except Exception:
             data[name] = "Component information is unavailable"
+            continue
+        # Parameters without a default come back as NaN; store them as null
+        info["parameter_defaults"] = {
+            p: None if isinstance(v, float) and math.isnan(v) else v
+            for p, v in info["parameter_defaults"].items()
+        }
+        data[name] = info
     with OUT.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, f, indent=4, allow_nan=False)
         f.write("\n")
     print(f"Wrote {len(data)} components to {OUT}")
 
