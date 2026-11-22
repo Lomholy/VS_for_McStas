@@ -36,33 +36,3 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 The language server also works outside VS Code. See [installation.md](installation.md)
 for Neovim, Emacs, Helix, Sublime Text and JetBrains IDEs.
-
-## Known Issues
-
-## Release Notes
-
-## 2.6.0
-Minor
-- The language server is rewritten in Python (pygls). The extension installs
-  it into its own virtual environment on first use, which needs `python3` 3.9
-  or newer on PATH. It also works in Neovim, see above.
-- Component data comes from McCode v3.10.3: 415 components, including the
-  `sasmodels` and new `contrib` components. It is regenerated from each McCode
-  release by a script, without a McStas installation.
-- Hover works on `SPLIT`, `REMOVABLE` and `CPU` component lines, and shows a
-  message for components without data.
-- Completion is quieter: no list on every space or after `(` outside a
-  component, case-insensitive matching, and component snippets no longer
-  insert a second `COMPONENT` after a typed `COMPONENT` or `COMPONENT name =`.
-- The formatter matches McCode's `mccode-clangformat`: macro continuation lines
-  no longer drift right on every format, `%{ %}` blocks in `.instr` files are
-  formatted too, and the `.clang-format` style is kept in sync with McCode.
-  clang-format now comes with the language server, so it no longer has to be
-  installed separately, and it is only looked up when you format.
-- `mcrun` and `mcdisplay` save the file first and run in its folder, so
-  instruments in subfolders and paths with spaces work.
-- The component form marks required parameters, and webviews escape their
-  content and use a Content-Security-Policy.
-- Removed commands and settings that did nothing, and the extension only
-  activates for McStas files and its own views and commands.
-- Added an extension icon and integration tests that run in CI.
