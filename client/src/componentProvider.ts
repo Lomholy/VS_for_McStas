@@ -29,8 +29,18 @@ function getCategoryIcon(label: string): vscode.ThemeIcon {
 }
 
 
-function resolveCompPathFromConda(category: string, compName: string): string | undefined {
-  for (const envPrefix of getCandidateCondaEnvs()) {
+// The environment chosen with "Choose McStas Conda Environment", or undefined for the automatic search
+function chosenCondaEnv(): string | undefined {
+  return vscode.workspace.getConfiguration('mcstas').get<string>('condaEnvironment')?.trim() || undefined;
+}
+
+function hasMcStasResources(envPrefix: string): boolean {
+  return fs.existsSync(path.join(envPrefix, 'share', 'mcstas', 'resources'));
+}
+
+export function resolveCompPathFromConda(category: string, compName: string): string | undefined {
+  const chosen = chosenCondaEnv();
+  for (const envPrefix of chosen ? [chosen] : getCandidateCondaEnvs()) {
 
     const p = path.join(envPrefix, 'share', 'mcstas', 'resources', category, `${compName}.comp`);
     if (fs.existsSync(p)) {
@@ -88,7 +98,60 @@ function getCandidateCondaEnvs(): string[] {
 
 export async function activateComponentViewer(context: vscode.ExtensionContext) {
   const jsonPath = context.asAbsolutePath('./server/python/src/mcstas_ls/data/mcstas-comps.json');
-  vscode.window.registerTreeDataProvider('Component_viewer', new ComponentProvider(jsonPath));
+  const provider = new ComponentProvider(jsonPath);
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider('Component_viewer', provider),
+    vscode.commands.registerCommand('mcstas.chooseCondaEnvironment', chooseCondaEnvironment),
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('mcstas.condaEnvironment')) {
+        provider.refresh();
+      }
+    })
+  );
+}
+
+// Lets the user pick the conda environment used to find .comp files; stored in the user settings
+async function chooseCondaEnvironment() {
+  const current = chosenCondaEnv();
+  type Item = vscode.QuickPickItem & { value?: string; browse?: boolean };
+  const items: Item[] = [
+    { label: '$(search) Automatic', description: 'Search the active and the usual conda environments', value: '' },
+    ...getCandidateCondaEnvs().filter(hasMcStasResources).map(env => ({
+      label: `$(package) ${path.basename(env)}`, description: env, value: env,
+    })),
+    { label: '$(folder) Browse...', description: 'Choose an environment folder', browse: true },
+  ];
+  for (const item of items) {
+    if (!item.browse && (item.value || undefined) === current) {
+      item.detail = 'Current setting';
+    }
+  }
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: 'Conda environment with McStas (used by "Open Component File")',
+  });
+  if (!picked) {
+    return;
+  }
+
+  let value = picked.value;
+  if (picked.browse) {
+    const folder = await vscode.window.showOpenDialog({
+      canSelectFolders: true, canSelectFiles: false, canSelectMany: false,
+      openLabel: 'Use this environment',
+    });
+    if (!folder) {
+      return;
+    }
+    value = folder[0].fsPath;
+    if (!hasMcStasResources(value)) {
+      vscode.window.showWarningMessage(`${value} has no share/mcstas/resources folder, so it does not look like a McStas environment. The setting was not changed.`);
+      return;
+    }
+  }
+
+  await vscode.workspace.getConfiguration('mcstas').update('condaEnvironment', value || undefined, vscode.ConfigurationTarget.Global);
+  vscode.window.showInformationMessage(value ? `McStas components are now read from ${value}.` : 'McStas components are found automatically again.');
 }
 
 class ComponentProvider implements vscode.TreeDataProvider<Component> {
