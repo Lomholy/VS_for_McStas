@@ -23,7 +23,8 @@ jobs:
 
   python-server:
     name: Python language server (pytest)
-    runs-on: ubuntu-latest
+    # setup-python has no Python 3.9 build for Ubuntu 26.04 (ubuntu-latest)
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
