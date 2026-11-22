@@ -14,11 +14,12 @@ component browser and an auto formatter.
   If `mcstas-language-server` is already on PATH (for example from pipx), that
   one is used instead.
 - **Component browser:** press the neutron icon in the activity bar to see all
-  McStas components by category. Clicking a component opens a form that writes
-  its `COMPONENT` declaration or McStasScript code. The component data ships
-  with the extension (currently from McCode v3.10.3), so no McStas installation
-  is needed. "Open Component File" opens the component's `.comp` source and
-  needs McStas installed through conda.
+  McStas components by category. Clicking a component opens a form for its
+  parameters, which generates the `COMPONENT` declaration or McStasScript code
+  for you to copy into your instrument. The component data ships with the
+  extension (currently from McCode v3.10.3), so no McStas installation is
+  needed. Only "Open Component File", which opens the component's `.comp`
+  source, needs McStas installed through conda.
 - **Formatter:** format a file with Shift+Alt+F (Windows), Shift+Option+F
   (macOS) or Ctrl+Shift+I (Linux). It formats the C code in `%{ %}` blocks the
   same way as McCode's `mccode-clangformat`, with McCode's `.clang-format`
