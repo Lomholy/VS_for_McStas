@@ -64,13 +64,15 @@ these lines.
 
 ### 5. Packaging
 
-- vsce ignores `.gitignore`, so a local `server/python/build/` and
-  `*.egg-info/` get packed into the `.vsix`. Add them to `.vscodeignore`,
-  together with `server/python/tests/` and `server/python/scripts/`.
-- `client/package.json` repeats the root devDependencies, with an outdated
-  `@vscode/test-electron ^2.4.1` (the root has `^3.1.0`). Remove the
-  duplicates unless something under `client/` needs them.
-- The private-venv install (#17) is tested only from Node against the
+- Done: `.vscodeignore` now keeps local build leftovers (`build/`,
+  `*.egg-info/`), server tests and scripts, `client/node_modules`,
+  `client/src`, Vim files and other dev-only files out of the `.vsix`
+  (3605 files / 10.5 MB down to 231 files / 0.46 MB). The bundled
+  `server/python` still pip-installs from an unpacked `.vsix`.
+- Done: `client/package.json` no longer repeats the root devDependencies;
+  tsc, eslint and the `@types` packages resolve from the root
+  `node_modules`.
+- Left: the private-venv install (#17) is tested only from Node against the
   compiled `client/out`. Check it once in a real Extension Development Host
   on a machine without `mcstas-language-server` on PATH.
 
