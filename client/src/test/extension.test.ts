@@ -77,6 +77,32 @@ suite('Extension', () => {
 		assert.ok(list.items.some(i => (typeof i.label === 'string' ? i.label : i.label.label) === 'Arm'));
 	});
 
+	test('language server completes component parameters inside the parentheses', async function () {
+		this.timeout(60000);
+		const labelsAt = async (position: vscode.Position) => {
+			const list = await waitFor(
+				() => vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', doc.uri, position),
+				l => l.items.length > 0,
+				50000
+			);
+			return list.items.map(i => (typeof i.label === 'string' ? i.label : i.label.label));
+		};
+
+		// Inside the existing Source_simple( ... ) call, at the start of its parameter line
+		const existing = await labelsAt(new vscode.Position(5, 2));
+		console.log('inside Source_simple():', existing.slice(0, 10).join(', '));
+		assert.ok(existing.includes('yheight'), existing.slice(0, 20).join(', '));
+
+		// A component call being typed, sent to the server as an edit
+		const line = 'COMPONENT mon = PSD_monitor(';
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(doc.uri, new vscode.Position(8, 0), line + '\n');
+		assert.ok(await vscode.workspace.applyEdit(edit));
+		const typed = await labelsAt(new vscode.Position(8, line.length));
+		console.log('after PSD_monitor(:', typed.slice(0, 10).join(', '));
+		assert.ok(typed.includes('nx'), typed.slice(0, 20).join(', '));
+	});
+
 	test('reads .comp files from the chosen conda environment', async () => {
 		const env = fs.mkdtempSync(path.join(os.tmpdir(), 'mcstas-env-'));
 		const comp = path.join(env, 'share', 'mcstas', 'resources', 'sources', 'Source_simple.comp');
