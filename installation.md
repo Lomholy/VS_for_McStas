@@ -11,6 +11,7 @@ package, so it works in any editor that speaks the Language Server Protocol.
 | [Neovim](#neovim) | yes | yes, McStas Vim syntax |
 | [Emacs](#emacs) | yes, with eglot | C highlighting |
 | [Helix](#helix) | yes | C highlighting |
+| [Zed](#zed) | yes, with the extension in `zed/` | C highlighting |
 | [Sublime Text](#sublime-text) | yes, with the LSP package | C highlighting |
 | [JetBrains IDEs](#jetbrains-ides) | yes, with the LSP4IJ plugin | yes, from the extension's TextMate grammar |
 | [Xcode](#xcode) | no | no |
@@ -229,6 +230,53 @@ for q in highlights indents textobjects; do echo "; inherits: c" > ~/.config/hel
 Check the setup with `hx --health mccode`: the language server and all queries
 should have a check mark. In the editor, `space k` shows hover and completion
 pops up while typing.
+
+## Zed
+
+Needs [the language server](#the-language-server) and Rust installed with
+[rustup](https://rustup.rs). Zed only adds languages and language servers
+through extensions, so this repository has a small one in its `zed/` folder.
+It is not in Zed's extension registry, so install it as a dev extension:
+
+1. Clone this repository:
+
+   ```bash
+   git clone https://github.com/Lomholy/VS_for_McStas.git
+   ```
+
+2. In Zed, run `zed: install dev extension` from the Command Palette
+   (Cmd+Shift+P / Ctrl+Shift+P), or click **Install Dev Extension** on the
+   Extensions page, and choose the `zed` folder inside the clone. Zed builds
+   the extension with Rust and downloads the C grammar, which takes a minute
+   the first time.
+
+The extension adds the language `McCode` for `.instr` and `.comp` files,
+highlights them with the C grammar, and starts `mcstas-language-server` from
+your PATH. Open a `.instr` file: the language selector in the status bar
+shows `McCode`. Hover with the mouse shows component documentation, and
+completion pops up while typing.
+
+If Zed cannot find the server, for example because it was installed into a
+[conda environment](#using-a-conda-environment-instead-of-pipx) or Zed does
+not see `~/.local/bin`, give the full path in Zed's `settings.json`
+(`zed: open settings`):
+
+```json
+{
+  "lsp": {
+    "mcstas-language-server": {
+      "binary": {
+        "path": "/Users/you/.local/bin/mcstas-language-server"
+      }
+    }
+  }
+}
+```
+
+Run `zed: open log` to see errors from the extension or the server. To update,
+`git pull` in the clone and click **Rebuild** next to the extension on the
+Extensions page; update the server itself as described in
+[the language server](#the-language-server).
 
 ## Sublime Text
 

@@ -39,4 +39,4 @@ In general, if you have any problems, desires for improvements etc. add an issue
 
 The extension also runs in VSCodium, and the language server works outside
 VS Code. See [installation.md](installation.md) for VSCodium, Neovim, Emacs,
-Helix, Sublime Text and JetBrains IDEs.
+Helix, Zed, Sublime Text and JetBrains IDEs.

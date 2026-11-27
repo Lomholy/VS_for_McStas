@@ -1,0 +1,5 @@
+name = "McCode"
+grammar = "c"
+path_suffixes = ["instr", "comp"]
+line_comments = ["// "]
+block_comment = ["/* ", " */"]

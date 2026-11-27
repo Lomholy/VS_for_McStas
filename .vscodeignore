@@ -26,3 +26,4 @@ server/python/tests/**
 server/python/scripts/**
 server/python/PLAN.md
 server/python/.gitignore
+zed/**

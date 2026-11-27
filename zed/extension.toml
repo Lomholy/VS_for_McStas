@@ -1,0 +1,15 @@
+id = "mcstas"
+name = "McStas"
+version = "0.0.1"
+schema_version = 1
+authors = ["Lomholy"]
+description = "McStas .instr and .comp files: C highlighting and the McStas language server"
+repository = "https://github.com/Lomholy/VS_for_McStas"
+
+[grammars.c]
+repository = "https://github.com/tree-sitter/tree-sitter-c"
+rev = "b780e47fc780ddc8da13afa35a3f4ed5c157823d"
+
+[language_servers.mcstas-language-server]
+name = "McStas Language Server"
+languages = ["McCode"]

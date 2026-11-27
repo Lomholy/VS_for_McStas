@@ -1,2 +1,4 @@
 node_modules
-.vscode-test
+.vscode-testzed/target
+zed/extension.wasm
+zed/grammars
